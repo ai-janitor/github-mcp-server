@@ -377,6 +377,12 @@ def main():
                 print(f"COMMENTS")
                 print(f"{'='*80}")
                 print("No comments found.")
+            
+            # Always show helpful comment command at the bottom
+            print(f"\n{'='*80}")
+            print(f"💡 To add a comment to this task:")
+            print(f"gh-projects-v2 comment --issue-url \"{issue['url']}\" --message \"Your comment here\"")
+            print(f"{'='*80}")
         
         elif args.command == 'statuses':
             print(f"Available statuses in project {project_id}:")
