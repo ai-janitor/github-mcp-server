@@ -53,6 +53,10 @@ def main():
     list_parser.add_argument('--search', help='Search for keywords in task titles and descriptions')
     list_parser.add_argument('--exact', action='store_true', help='Search for exact phrase instead of keywords')
     
+    # Detail command
+    detail_parser = subparsers.add_parser('detail', help='Show detailed information for a specific task')
+    detail_parser.add_argument('--item-id', required=True, help='Project item ID (PVTI_xxx format)')
+    
     # List statuses command
     statuses_parser = subparsers.add_parser('statuses', help='List available status options')
     
@@ -306,6 +310,73 @@ def main():
                 print(f"💡 To move a task: gh-projects-v2 move --item-id ITEM_ID --status \"New Status\"")
             else:
                 print("No items found matching your criteria.")
+        
+        elif args.command == 'detail':
+            print(f"Getting detailed information for item {args.item_id}...")
+            detail = manager.get_task_detail(project_id, args.item_id)
+            
+            issue = detail['issue']
+            
+            # Print main task information
+            print(f"\n{'='*80}")
+            print(f"TASK DETAILS")
+            print(f"{'='*80}")
+            print(f"Issue #{issue['number']}: {issue['title']}")
+            print(f"Status: {detail['status']}")
+            print(f"URL: {issue['url']}")
+            print(f"State: {issue.get('state', 'Unknown').upper()}")
+            print(f"Author: {issue.get('author', {}).get('login', 'Unknown')}")
+            print(f"Created: {issue.get('createdAt', 'Unknown')}")
+            print(f"Updated: {issue.get('updatedAt', 'Unknown')}")
+            print(f"Item ID: {detail['item_id']}")
+            
+            # Print assignees if any
+            if issue.get('assignees') and issue['assignees'].get('nodes'):
+                assignees = [a.get('login') for a in issue['assignees']['nodes']]
+                print(f"Assignees: {', '.join(assignees)}")
+            
+            # Print labels if any  
+            if issue.get('labels') and issue['labels'].get('nodes'):
+                labels = [f"{l['name']}" for l in issue['labels']['nodes']]
+                print(f"Labels: {', '.join(labels)}")
+                
+            # Print custom project fields
+            if detail['fields']:
+                print(f"\nProject Fields:")
+                for field_name, field_value in detail['fields'].items():
+                    if field_name != 'Status':  # Already shown above
+                        print(f"  {field_name}: {field_value}")
+            
+            # Print description/body
+            if issue.get('body'):
+                print(f"\n{'='*80}")
+                print(f"DESCRIPTION")
+                print(f"{'='*80}")
+                print(issue['body'])
+            
+            # Print comments
+            if issue.get('comments') and issue['comments'].get('nodes'):
+                comments = issue['comments']['nodes']
+                print(f"\n{'='*80}")
+                print(f"COMMENTS ({len(comments)})")
+                print(f"{'='*80}")
+                
+                for i, comment in enumerate(comments, 1):
+                    author = comment.get('author', {}).get('login', 'Unknown')
+                    created = comment.get('createdAt', 'Unknown')
+                    body = comment.get('body', '')
+                    
+                    print(f"\n--- Comment #{i} ---")
+                    print(f"Author: {author}")
+                    print(f"Date: {created}")
+                    print(f"Content:")
+                    print(body)
+                    print("-" * 40)
+            else:
+                print(f"\n{'='*80}")
+                print(f"COMMENTS")
+                print(f"{'='*80}")
+                print("No comments found.")
         
         elif args.command == 'statuses':
             print(f"Available statuses in project {project_id}:")

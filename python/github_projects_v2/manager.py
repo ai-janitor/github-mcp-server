@@ -277,6 +277,151 @@ class GitHubProjectsManager:
         print(f"✅ Fetched all {len(all_items)} project items")
         return all_items
     
+    def get_task_detail(self, project_id: str, item_id: str) -> Dict[str, Any]:
+        """
+        Get detailed information for a specific task including comments and metadata.
+        
+        Args:
+            project_id: GitHub Projects v2 project ID (PVT_xxx format)
+            item_id: Project item ID (PVTI_xxx format)
+            
+        Returns:
+            Detailed task information with comments, status, fields, and metadata
+            
+        Example:
+            >>> detail = manager.get_task_detail("PVT_kwHOxxx", "PVTI_xxx")
+            >>> print(detail['issue']['title'])
+        """
+        # Get the project item details
+        query = """
+        query($projectId: ID!, $itemId: ID!) {
+            node(id: $projectId) {
+                ... on ProjectV2 {
+                    item(id: $itemId) {
+                        id
+                        databaseId
+                        createdAt
+                        updatedAt
+                        content {
+                            ... on Issue {
+                                id
+                                number
+                                title
+                                body
+                                url
+                                state
+                                author {
+                                    login
+                                }
+                                createdAt
+                                updatedAt
+                                assignees(first: 10) {
+                                    nodes {
+                                        login
+                                        name
+                                    }
+                                }
+                                labels(first: 20) {
+                                    nodes {
+                                        name
+                                        color
+                                    }
+                                }
+                                comments(first: 100) {
+                                    nodes {
+                                        id
+                                        body
+                                        createdAt
+                                        author {
+                                            login
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        fieldValues(first: 20) {
+                            nodes {
+                                ... on ProjectV2ItemFieldTextValue {
+                                    text
+                                    field {
+                                        ... on ProjectV2Field {
+                                            id
+                                            name
+                                        }
+                                    }
+                                }
+                                ... on ProjectV2ItemFieldSingleSelectValue {
+                                    name
+                                    field {
+                                        ... on ProjectV2SingleSelectField {
+                                            id
+                                            name
+                                        }
+                                    }
+                                }
+                                ... on ProjectV2ItemFieldNumberValue {
+                                    number
+                                    field {
+                                        ... on ProjectV2Field {
+                                            id
+                                            name
+                                        }
+                                    }
+                                }
+                                ... on ProjectV2ItemFieldDateValue {
+                                    date
+                                    field {
+                                        ... on ProjectV2Field {
+                                            id
+                                            name
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        """
+        
+        result = self.execute_graphql(query, {
+            'projectId': project_id,
+            'itemId': item_id
+        })
+        
+        if not result.get('node') or not result['node'].get('item'):
+            raise Exception(f"Project item {item_id} not found in project {project_id}")
+        
+        # Process the result to make it easier to work with
+        item = result['node']['item']
+        issue = item.get('content', {})
+        
+        # Extract field values into a readable format
+        fields = {}
+        if 'fieldValues' in item:
+            for field_value in item['fieldValues']['nodes']:
+                if 'field' in field_value and field_value['field']:
+                    field_name = field_value['field']['name']
+                    if 'text' in field_value:
+                        fields[field_name] = field_value['text']
+                    elif 'name' in field_value:
+                        fields[field_name] = field_value['name']
+                    elif 'number' in field_value:
+                        fields[field_name] = field_value['number']
+                    elif 'date' in field_value:
+                        fields[field_name] = field_value['date']
+        
+        return {
+            'item_id': item['id'],
+            'database_id': item.get('databaseId'),
+            'created_at': item.get('createdAt'),
+            'updated_at': item.get('updatedAt'),
+            'issue': issue,
+            'fields': fields,
+            'status': fields.get('Status', 'Unknown')
+        }
+    
     def move_task_to_status(self, project_id: str, item_id: str, status_name: str) -> Dict[str, Any]:
         """
         Move a project item to a specific status column.

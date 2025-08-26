@@ -100,6 +100,12 @@ gh-projects-v2 batch-move --item-ids PVTI_xxx1 PVTI_xxx2 --status "Done" --comme
 gh-projects-v2 comment --issue-url "https://github.com/owner/repo/issues/123" --message "Progress update"
 ```
 
+### Get Detailed Task Information
+```bash
+# View full task details including comments, metadata, and description
+gh-projects-v2 detail --item-id PVTI_xxx
+```
+
 ### See What Columns Are Available
 ```bash
 gh-projects-v2 statuses
