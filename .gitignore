@@ -1,5 +1,6 @@
 .idea
 cmd/github-mcp-server/github-mcp-server
+github-mcp-server-local
 
 # VSCode
 .vscode/*
@@ -15,3 +16,7 @@ bin/
 
 # macOS
 .DS_Store
+
+# Claude configuration (contains secrets)
+CLAUDE.md
+claude.md
