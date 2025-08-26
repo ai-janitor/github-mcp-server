@@ -332,6 +332,70 @@ class GitHubProjectsManager:
         
         return []
     
+    def trigger_workflow(self, owner: str, repo: str, workflow_id: str, ref: str = "main", inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+        """
+        Trigger a GitHub Actions workflow manually.
+        
+        Args:
+            owner: Repository owner (username or organization)
+            repo: Repository name
+            workflow_id: Workflow ID or filename (e.g., "12345678" or "build.yml")
+            ref: Git reference to run workflow on (default: "main")
+            inputs: Optional inputs for workflow_dispatch (if workflow accepts them)
+            
+        Returns:
+            Success confirmation from GitHub API
+            
+        Raises:
+            Exception: If workflow trigger fails or workflow doesn't support manual dispatch
+            
+        Example:
+            >>> result = manager.trigger_workflow("owner", "repo", "build.yml")
+            >>> result = manager.trigger_workflow("owner", "repo", "deploy.yml", "main", {"environment": "staging"})
+        """
+        # Use REST API to trigger workflow
+        trigger_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
+        
+        payload = {"ref": ref}
+        if inputs:
+            payload["inputs"] = inputs
+        
+        response = requests.post(trigger_url, headers=self.headers, json=payload)
+        
+        if response.status_code == 204:
+            return {"success": True, "message": "Workflow triggered successfully"}
+        elif response.status_code == 404:
+            raise Exception(f"Workflow '{workflow_id}' not found or doesn't support manual triggering")
+        elif response.status_code == 422:
+            raise Exception(f"Workflow '{workflow_id}' doesn't support manual dispatch (missing workflow_dispatch trigger)")
+        else:
+            raise Exception(f"Failed to trigger workflow: {response.status_code} - {response.text}")
+    
+    def list_workflows(self, owner: str, repo: str) -> List[Dict[str, Any]]:
+        """
+        List all GitHub Actions workflows in a repository.
+        
+        Args:
+            owner: Repository owner (username or organization)
+            repo: Repository name
+            
+        Returns:
+            List of workflows with their details
+            
+        Example:
+            >>> workflows = manager.list_workflows("owner", "repo")
+            >>> for wf in workflows:
+            ...     print(f"{wf['name']} ({wf['id']}): {wf['path']}")
+        """
+        workflows_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/workflows"
+        
+        response = requests.get(workflows_url, headers=self.headers)
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to list workflows: {response.status_code} - {response.text}")
+        
+        return response.json().get('workflows', [])
+    
     def move_multiple_tasks(self, project_id: str, item_ids: List[str], 
                            status_name: str, comment: Optional[str] = None) -> List[Dict[str, Any]]:
         """

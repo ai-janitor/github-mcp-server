@@ -20,11 +20,11 @@ def main():
     to avoid exposing tokens in command line history or process lists.
     """
     parser = argparse.ArgumentParser(
-        description='GitHub Projects v2 Task Management CLI - Uses GITHUB_TOKEN and GITHUB_PROJECT_ID environment variables',
+        description='GitHub Projects v2 Task Management CLI - Uses GITHUB_TOKEN, GITHUB_PROJECT_ID, GITHUB_OWNER, and GITHUB_REPO environment variables',
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.0.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.1.0')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -51,6 +51,18 @@ def main():
     
     # List statuses command
     statuses_parser = subparsers.add_parser('statuses', help='List available status options')
+    
+    # Workflow commands
+    workflow_parser = subparsers.add_parser('trigger-workflow', help='Trigger GitHub Actions workflow')
+    workflow_parser.add_argument('--owner', help='Repository owner (username or organization) - overrides GITHUB_OWNER env var')
+    workflow_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
+    workflow_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
+    workflow_parser.add_argument('--ref', default='main', help='Git reference to run on (default: main)')
+    
+    # List workflows command
+    list_workflows_parser = subparsers.add_parser('list-workflows', help='List all workflows in repository')
+    list_workflows_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
+    list_workflows_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
     
     args = parser.parse_args()
     
@@ -152,6 +164,55 @@ def main():
             statuses = manager.get_available_statuses(project_id)
             for status in statuses:
                 print(f"  - {status}")
+        
+        elif args.command == 'trigger-workflow':
+            # Get owner/repo from arguments or environment variables
+            owner = args.owner or os.getenv('GITHUB_OWNER')
+            repo = args.repo or os.getenv('GITHUB_REPO')
+            
+            if not owner:
+                print("❌ Error: Repository owner required", file=sys.stderr)
+                print("Use --owner USERNAME or set GITHUB_OWNER environment variable", file=sys.stderr)
+                return 1
+            if not repo:
+                print("❌ Error: Repository name required", file=sys.stderr)
+                print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
+                return 1
+            
+            print(f"Triggering workflow '{args.workflow}' in {owner}/{repo}...")
+            result = manager.trigger_workflow(owner, repo, args.workflow, args.ref)
+            print(f"✅ {result['message']}")
+        
+        elif args.command == 'list-workflows':
+            # Get owner/repo from arguments or environment variables
+            owner = args.owner or os.getenv('GITHUB_OWNER')
+            repo = args.repo or os.getenv('GITHUB_REPO')
+            
+            if not owner:
+                print("❌ Error: Repository owner required", file=sys.stderr)
+                print("Use --owner USERNAME or set GITHUB_OWNER environment variable", file=sys.stderr)
+                return 1
+            if not repo:
+                print("❌ Error: Repository name required", file=sys.stderr)
+                print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
+                return 1
+            
+            print(f"Listing workflows in {owner}/{repo}:")
+            workflows = manager.list_workflows(owner, repo)
+            
+            if not workflows:
+                print("No workflows found in this repository.")
+            else:
+                print(f"\nFound {len(workflows)} workflows:")
+                print("-" * 80)
+                for wf in workflows:
+                    print(f"Name: {wf['name']}")
+                    print(f"  ID: {wf['id']}")
+                    print(f"  File: {wf['path']}")
+                    print(f"  State: {wf['state']}")
+                    if 'badge_url' in wf:
+                        print(f"  Badge: {wf['badge_url']}")
+                    print()
         
         return 0
         

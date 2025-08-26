@@ -10,14 +10,16 @@ pip install github-projects-v2
 
 ## Setup
 
-Set your GitHub token and project ID once:
+Set your GitHub credentials once:
 
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
 export GITHUB_PROJECT_ID=PVT_your_project_id
+export GITHUB_OWNER=your-username
+export GITHUB_REPO=your-repo-name
 ```
 
-## What You Can Do
+## What Your Tool Can Do
 
 ### See All Your Tasks
 ```bash
@@ -62,6 +64,19 @@ gh-projects-v2 comment --issue-url "https://github.com/owner/repo/issues/123" --
 ### See What Columns Are Available
 ```bash
 gh-projects-v2 statuses
+```
+
+### Trigger GitHub Workflows
+```bash
+# See what workflows are available
+gh-projects-v2 list-workflows
+
+# Trigger a workflow
+gh-projects-v2 trigger-workflow --workflow build.yml
+gh-projects-v2 trigger-workflow --workflow deploy.yml --ref main
+
+# Or override the repo for one command
+gh-projects-v2 trigger-workflow --owner different-user --repo different-repo --workflow build.yml
 ```
 
 ## How to Get Item IDs
