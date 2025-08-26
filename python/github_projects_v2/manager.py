@@ -6,7 +6,8 @@ INTEGRATION: Replicates MCP Server functionality for environments without AI
 """
 
 import requests
-from typing import Dict, Any, List, Optional
+import re
+from typing import Dict, Any, List, Optional, Tuple
 
 
 class GitHubProjectsManager:
@@ -640,3 +641,223 @@ class GitHubProjectsManager:
         except UnicodeDecodeError:
             # If it's actually a ZIP file, return a helpful message
             return f"Logs are available as ZIP download from: {logs_url}\nUse a web browser or curl to download the complete log archive."
+    
+    def parse_github_url(self, url: str) -> Dict[str, Optional[str]]:
+        """
+        Parse various GitHub URL formats to extract owner, repo, and other components.
+        
+        Args:
+            url: GitHub URL in various formats
+            
+        Returns:
+            Dictionary with parsed components: owner, repo, project_number, url_type, is_org
+            
+        Example:
+            >>> manager.parse_github_url("https://github.com/owner/repo")
+            {'owner': 'owner', 'repo': 'repo', 'project_number': None, 'url_type': 'repository', 'is_org': False}
+            >>> manager.parse_github_url("https://github.com/users/owner/projects/1")
+            {'owner': 'owner', 'repo': None, 'project_number': 1, 'url_type': 'user_project', 'is_org': False}
+        """
+        # Normalize URL - remove trailing slashes and ensure https
+        url = url.strip().rstrip('/')
+        if not url.startswith(('http://', 'https://', 'git@')):
+            url = f"https://{url}"
+        
+        # Repository URL patterns
+        repo_patterns = [
+            r'https?://github\.com/([^/]+)/([^/]+?)(?:\.git)?/?$',  # https://github.com/owner/repo
+            r'git@github\.com:([^/]+)/([^/]+?)(?:\.git)?/?$',       # git@github.com:owner/repo.git
+            r'https?://github\.com/([^/]+)/([^/]+)/(?:issues|pulls|actions)',  # issue/PR URLs
+        ]
+        
+        for pattern in repo_patterns:
+            match = re.match(pattern, url)
+            if match:
+                owner, repo = match.groups()
+                return {
+                    'owner': owner,
+                    'repo': repo,
+                    'project_number': None,
+                    'url_type': 'repository',
+                    'is_org': False  # Cannot determine from URL alone
+                }
+        
+        # User project URL pattern
+        user_project_pattern = r'https?://github\.com/users/([^/]+)/projects/(\d+)'
+        match = re.match(user_project_pattern, url)
+        if match:
+            owner, project_number = match.groups()
+            return {
+                'owner': owner,
+                'repo': None,
+                'project_number': int(project_number),
+                'url_type': 'user_project',
+                'is_org': False
+            }
+        
+        # Organization project URL pattern
+        org_project_pattern = r'https?://github\.com/orgs/([^/]+)/projects/(\d+)'
+        match = re.match(org_project_pattern, url)
+        if match:
+            owner, project_number = match.groups()
+            return {
+                'owner': owner,
+                'repo': None,
+                'project_number': int(project_number),
+                'url_type': 'org_project', 
+                'is_org': True
+            }
+        
+        # If no patterns match, return empty result
+        return {
+            'owner': None,
+            'repo': None,
+            'project_number': None,
+            'url_type': 'unknown',
+            'is_org': False
+        }
+    
+    def resolve_project_id_from_number(self, owner: str, project_number: int, is_org: bool = False) -> str:
+        """
+        Resolve a public project number to internal PVT_xxx project ID via GitHub API.
+        
+        Args:
+            owner: Project owner (username or organization name)
+            project_number: Public project number from URL
+            is_org: True if this is an organization project, False for user project
+            
+        Returns:
+            Internal PVT_xxx project ID
+            
+        Raises:
+            Exception: If project not found or insufficient permissions
+            
+        Example:
+            >>> manager.resolve_project_id_from_number("ai-janitor", 1, False)
+            "PVT_kwHODSyt1s4BBe5J"
+        """
+        if is_org:
+            # Query for organization project
+            query = """
+            query($owner: String!, $number: Int!) {
+                organization(login: $owner) {
+                    projectV2(number: $number) {
+                        id
+                        title
+                        number
+                    }
+                }
+            }
+            """
+        else:
+            # Query for user project
+            query = """
+            query($owner: String!, $number: Int!) {
+                user(login: $owner) {
+                    projectV2(number: $number) {
+                        id
+                        title
+                        number
+                    }
+                }
+            }
+            """
+        
+        variables = {
+            'owner': owner,
+            'number': project_number
+        }
+        
+        try:
+            result = self.execute_graphql(query, variables)
+            
+            # Extract project from response
+            entity_key = 'organization' if is_org else 'user'
+            entity = result.get(entity_key)
+            
+            if not entity:
+                raise Exception(f"{'Organization' if is_org else 'User'} '{owner}' not found or not accessible")
+            
+            project = entity.get('projectV2')
+            if not project:
+                raise Exception(f"Project #{project_number} not found for {owner} or not accessible")
+            
+            return project['id']
+            
+        except Exception as e:
+            if "Could not resolve" in str(e) or "Field 'projectV2' doesn't exist" in str(e):
+                raise Exception(f"Project #{project_number} not found for {owner}. It may be private or you may lack permissions.")
+            raise e
+    
+    def generate_env_setup_from_url(self, url: str) -> Dict[str, Any]:
+        """
+        Parse GitHub URL and generate environment variable setup commands.
+        
+        Args:
+            url: GitHub repository or project URL
+            
+        Returns:
+            Dictionary with parsed info and generated export commands
+            
+        Example:
+            >>> result = manager.generate_env_setup_from_url("https://github.com/users/ai-janitor/projects/1")
+            >>> print(result['export_commands'])
+        """
+        parsed = self.parse_github_url(url)
+        
+        if parsed['url_type'] == 'unknown':
+            return {
+                'success': False,
+                'error': f"Could not parse GitHub URL: {url}",
+                'parsed': parsed,
+                'export_commands': []
+            }
+        
+        export_commands = []
+        project_info = None
+        
+        try:
+            if parsed['url_type'] in ['user_project', 'org_project']:
+                # Resolve project number to PVT_xxx ID
+                project_id = self.resolve_project_id_from_number(
+                    parsed['owner'], 
+                    parsed['project_number'], 
+                    parsed['is_org']
+                )
+                
+                # Get project details for display
+                project_details = self.get_project_info(project_id)
+                project_info = {
+                    'id': project_id,
+                    'title': project_details['node']['title'],
+                    'number': parsed['project_number']
+                }
+                
+                export_commands = [
+                    f"export GITHUB_TOKEN=your_personal_token  # Set this manually",
+                    f"export GITHUB_PROJECT_ID={project_id}",
+                    f"export GITHUB_OWNER={parsed['owner']}"
+                ]
+                
+            elif parsed['url_type'] == 'repository':
+                export_commands = [
+                    f"export GITHUB_TOKEN=your_personal_token  # Set this manually",
+                    f"export GITHUB_OWNER={parsed['owner']}",
+                    f"export GITHUB_REPO={parsed['repo']}"
+                ]
+            
+            return {
+                'success': True,
+                'parsed': parsed,
+                'project_info': project_info,
+                'export_commands': export_commands,
+                'url_type': parsed['url_type']
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e),
+                'parsed': parsed,
+                'export_commands': []
+            }

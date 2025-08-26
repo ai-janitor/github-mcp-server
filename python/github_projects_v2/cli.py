@@ -24,8 +24,9 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.5.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.6.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
+    parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -131,6 +132,77 @@ def main():
         print("  gh-projects-v2 trigger-workflow --workflow deploy.yml --branch stage")
         print("  gh-projects-v2 get-workflow-logs --workflow build.yml --last 1")
         print()
+        return 0
+    
+    if args.extract_setup:
+        print("GitHub Projects v2 CLI - URL Setup Extraction")
+        print("=" * 50)
+        print(f"Processing URL: {args.extract_setup}")
+        print()
+        
+        # Get token from environment variable (required for API calls)
+        import os
+        token = os.getenv('GITHUB_TOKEN')
+        if not token:
+            print("⚠️  Warning: GITHUB_TOKEN environment variable not set")
+            print("   API calls may fail for private projects or organizations")
+            print("   Set with: export GITHUB_TOKEN=your_personal_token")
+            print()
+        
+        try:
+            # Create manager instance (with or without token)
+            manager = GitHubProjectsManager(token or "dummy_token")
+            
+            # Generate environment setup from URL
+            result = manager.generate_env_setup_from_url(args.extract_setup)
+            
+            if result['success']:
+                print("✅ Successfully parsed GitHub URL")
+                
+                # Show parsed information
+                parsed = result['parsed']
+                print(f"URL Type: {parsed['url_type'].replace('_', ' ').title()}")
+                print(f"Owner: {parsed['owner']}")
+                if parsed['repo']:
+                    print(f"Repository: {parsed['repo']}")
+                if result.get('project_info'):
+                    project = result['project_info']
+                    print(f"Project: #{project['number']} - {project['title']}")
+                    print(f"Project ID: {project['id']}")
+                print()
+                
+                # Show generated export commands
+                print("Generated Environment Setup:")
+                print("-" * 35)
+                for cmd in result['export_commands']:
+                    print(cmd)
+                print()
+                
+                # Additional guidance based on URL type
+                if result['url_type'] in ['user_project', 'org_project']:
+                    print("✨ Ready for project management commands:")
+                    print("   gh-projects-v2 list")
+                    print("   gh-projects-v2 move --item-id PVTI_xxx --status 'Done'")
+                elif result['url_type'] == 'repository':
+                    print("✨ Ready for workflow commands (also need GITHUB_PROJECT_ID for tasks):")
+                    print("   gh-projects-v2 list-workflows")
+                    print("   gh-projects-v2 trigger-workflow --workflow build.yml")
+                
+            else:
+                print("❌ Failed to parse GitHub URL")
+                print(f"Error: {result['error']}")
+                print()
+                print("Supported URL formats:")
+                print("  • https://github.com/owner/repo")
+                print("  • https://github.com/users/owner/projects/N")
+                print("  • https://github.com/orgs/organization/projects/N")
+                print("  • git@github.com:owner/repo.git")
+                return 1
+                
+        except Exception as e:
+            print(f"❌ Error processing URL: {e}")
+            return 1
+        
         return 0
     
     if not args.command:

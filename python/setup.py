@@ -17,7 +17,7 @@ except FileNotFoundError:
 
 setup(
     name="github-projects-v2",
-    version="1.5.0",
+    version="1.6.0",
     author="GitHub MCP Server",
     author_email="",
     description="Python library for GitHub Projects v2 task management",
