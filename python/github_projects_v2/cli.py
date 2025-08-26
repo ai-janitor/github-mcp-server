@@ -24,7 +24,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.6.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.7.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
     
@@ -280,9 +280,9 @@ def main():
                     print(f"Filtering by status: {args.status_filter}")
             else:
                 items = manager.list_project_items(project_id)
-                # Apply status filter if specified
+                # Apply status filter if specified (case-insensitive, space-tolerant)
                 if args.status_filter:
-                    items = [item for item in items if item['status'] == args.status_filter]
+                    items = [item for item in items if manager._status_matches(item['status'], args.status_filter)]
                     print(f"Filtering by status: {args.status_filter}")
             
             print(f"\nFound {len(items)} items:")

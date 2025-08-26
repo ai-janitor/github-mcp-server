@@ -356,11 +356,36 @@ class GitHubProjectsManager:
                 matches = title_matches or body_matches
             
             if matches:
-                # Apply status filter if specified
-                if status_filter is None or item['status'] == status_filter:
+                # Apply status filter if specified (case-insensitive, space-tolerant)
+                if status_filter is None or self._status_matches(item['status'], status_filter):
                     matching_items.append(item)
         
         return matching_items
+    
+    def _status_matches(self, actual_status: str, filter_status: str) -> bool:
+        """
+        Compare two status strings with case-insensitive, space-tolerant matching.
+        
+        Args:
+            actual_status: The actual status from the project item
+            filter_status: The status filter provided by user
+            
+        Returns:
+            True if statuses match (after normalization)
+            
+        Example:
+            >>> self._status_matches("In Progress", "in progress")  # True
+            >>> self._status_matches("In Progress", "inprogress")   # True  
+            >>> self._status_matches("Todo", "to do")               # False
+        """
+        if not actual_status or not filter_status:
+            return False
+            
+        # Normalize both strings: lowercase and remove spaces
+        actual_normalized = actual_status.lower().replace(' ', '')
+        filter_normalized = filter_status.lower().replace(' ', '')
+        
+        return actual_normalized == filter_normalized
     
     def get_available_statuses(self, project_id: str) -> List[str]:
         """
