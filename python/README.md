@@ -4,6 +4,14 @@ Move tasks between columns on GitHub project boards from the command line. No mo
 
 ## Install
 
+### From Source (Current)
+```bash
+git clone https://github.com/ai-janitor/github-mcp-server.git
+cd github-mcp-server/python
+pip install .
+```
+
+### From PyPI (Coming Soon)
 ```bash
 pip install github-projects-v2
 ```
