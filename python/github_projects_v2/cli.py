@@ -24,7 +24,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.1.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.3.0')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -48,6 +48,8 @@ def main():
     # List items command
     list_parser = subparsers.add_parser('list', help='List all project items')
     list_parser.add_argument('--status-filter', help='Filter by status name')
+    list_parser.add_argument('--search', help='Search for keywords in task titles and descriptions')
+    list_parser.add_argument('--exact', action='store_true', help='Search for exact phrase instead of keywords')
     
     # List statuses command
     statuses_parser = subparsers.add_parser('statuses', help='List available status options')
@@ -131,12 +133,20 @@ def main():
         
         elif args.command == 'list':
             print(f"Listing items in project {project_id}")
-            items = manager.list_project_items(project_id)
             
-            # Apply status filter if specified
-            if args.status_filter:
-                items = [item for item in items if item['status'] == args.status_filter]
-                print(f"Filtering by status: {args.status_filter}")
+            # Use search if provided, otherwise get all items
+            if args.search:
+                items = manager.search_project_items(project_id, args.search, args.status_filter, args.exact)
+                search_type = "exact phrase" if args.exact else "keywords"
+                print(f"Searching for {search_type}: '{args.search}'")
+                if args.status_filter:
+                    print(f"Filtering by status: {args.status_filter}")
+            else:
+                items = manager.list_project_items(project_id)
+                # Apply status filter if specified
+                if args.status_filter:
+                    items = [item for item in items if item['status'] == args.status_filter]
+                    print(f"Filtering by status: {args.status_filter}")
             
             print(f"\nFound {len(items)} items:")
             print("-" * 80)

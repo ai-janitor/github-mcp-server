@@ -118,6 +118,7 @@ class GitHubProjectsManager:
                                     id
                                     number
                                     title
+                                    body
                                     url
                                 }
                             }
@@ -308,6 +309,57 @@ class GitHubProjectsManager:
             items.append(item_data)
         
         return items
+    
+    def search_project_items(self, project_id: str, search_terms: str, status_filter: str = None, exact_match: bool = False) -> List[Dict[str, Any]]:
+        """
+        Search project items by content (title, body) and optionally filter by status.
+        
+        Args:
+            project_id: GitHub Projects v2 project ID (PVT_xxx format)
+            search_terms: Search terms - keywords (default) or exact phrase (with exact_match=True)
+            status_filter: Optional status filter to apply after search
+            exact_match: If True, search for exact phrase; if False, search for all keywords
+            
+        Returns:
+            List of matching project items
+            
+        Example:
+            >>> items = manager.search_project_items("PVT_kwHOxxx", "login bug")  # Finds items with both "login" AND "bug"
+            >>> items = manager.search_project_items("PVT_kwHOxxx", "login bug", exact_match=True)  # Finds "login bug" phrase
+            >>> items = manager.search_project_items("PVT_kwHOxxx", "API", "In Progress")
+        """
+        # Get all items
+        all_items = self.list_project_items(project_id)
+        
+        # Convert search terms to lowercase for case-insensitive search
+        search_terms_lower = search_terms.lower()
+        
+        matching_items = []
+        for item in all_items:
+            issue = item['issue']
+            
+            # Search in title and body (description)
+            title = issue.get('title', '').lower()
+            body = issue.get('body', '') or ''  # Handle None body
+            body = body.lower()
+            
+            # Check if search terms match title or body
+            if exact_match:
+                # Exact phrase match
+                matches = search_terms_lower in title or search_terms_lower in body
+            else:
+                # Keyword match - all keywords must be present
+                keywords = search_terms_lower.split()
+                title_matches = all(keyword in title for keyword in keywords)
+                body_matches = all(keyword in body for keyword in keywords)
+                matches = title_matches or body_matches
+            
+            if matches:
+                # Apply status filter if specified
+                if status_filter is None or item['status'] == status_filter:
+                    matching_items.append(item)
+        
+        return matching_items
     
     def get_available_statuses(self, project_id: str) -> List[str]:
         """

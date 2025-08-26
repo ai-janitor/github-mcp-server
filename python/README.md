@@ -20,11 +20,28 @@ pip install github-projects-v2
 
 Set your GitHub credentials once:
 
+### Linux/macOS
 ```bash
 export GITHUB_TOKEN=ghp_your_token_here
 export GITHUB_PROJECT_ID=PVT_your_project_id
 export GITHUB_OWNER=your-username
 export GITHUB_REPO=your-repo-name
+```
+
+### Windows PowerShell
+```powershell
+$env:GITHUB_TOKEN="ghp_your_token_here"
+$env:GITHUB_PROJECT_ID="PVT_your_project_id"
+$env:GITHUB_OWNER="your-username"
+$env:GITHUB_REPO="your-repo-name"
+```
+
+### Windows Command Prompt
+```cmd
+set GITHUB_TOKEN=ghp_your_token_here
+set GITHUB_PROJECT_ID=PVT_your_project_id
+set GITHUB_OWNER=your-username
+set GITHUB_REPO=your-repo-name
 ```
 
 ## What Your Tool Can Do
@@ -44,6 +61,20 @@ gh-projects-v2 list --status-filter "Todo"
 
 # See only "Done" tasks
 gh-projects-v2 list --status-filter "Done"
+```
+
+### Search for Specific Tasks
+```bash
+# Search all tasks for keywords in title or description (finds tasks with ALL keywords)
+gh-projects-v2 list --search "login bug"  # Finds tasks with both "login" AND "bug"
+gh-projects-v2 list --search "API integration"  # Finds tasks with both "API" AND "integration"
+
+# Search for exact phrase instead of keywords
+gh-projects-v2 list --search "login bug" --exact  # Finds only "login bug" as exact phrase
+
+# Combine search with status filter
+gh-projects-v2 list --search "database" --status-filter "In Progress"
+gh-projects-v2 list --search "critical bug" --exact --status-filter "Todo"
 ```
 
 ### Move One Task
