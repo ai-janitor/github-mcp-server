@@ -292,89 +292,91 @@ class GitHubProjectsManager:
             >>> detail = manager.get_task_detail("PVT_kwHOxxx", "PVTI_xxx")
             >>> print(detail['issue']['title'])
         """
-        # Get the project item details
+        # Get the project item details directly by item ID
         query = """
-        query($projectId: ID!, $itemId: ID!) {
-            node(id: $projectId) {
-                ... on ProjectV2 {
-                    item(id: $itemId) {
+        query($itemId: ID!) {
+            node(id: $itemId) {
+                ... on ProjectV2Item {
+                    id
+                    databaseId
+                    createdAt
+                    updatedAt
+                    project {
                         id
-                        databaseId
-                        createdAt
-                        updatedAt
-                        content {
-                            ... on Issue {
-                                id
-                                number
-                                title
-                                body
-                                url
-                                state
-                                author {
+                        title
+                    }
+                    content {
+                        ... on Issue {
+                            id
+                            number
+                            title
+                            body
+                            url
+                            state
+                            author {
+                                login
+                            }
+                            createdAt
+                            updatedAt
+                            assignees(first: 10) {
+                                nodes {
                                     login
+                                    name
                                 }
-                                createdAt
-                                updatedAt
-                                assignees(first: 10) {
-                                    nodes {
+                            }
+                            labels(first: 20) {
+                                nodes {
+                                    name
+                                    color
+                                }
+                            }
+                            comments(first: 100) {
+                                nodes {
+                                    id
+                                    body
+                                    createdAt
+                                    author {
                                         login
-                                        name
-                                    }
-                                }
-                                labels(first: 20) {
-                                    nodes {
-                                        name
-                                        color
-                                    }
-                                }
-                                comments(first: 100) {
-                                    nodes {
-                                        id
-                                        body
-                                        createdAt
-                                        author {
-                                            login
-                                        }
                                     }
                                 }
                             }
                         }
-                        fieldValues(first: 20) {
-                            nodes {
-                                ... on ProjectV2ItemFieldTextValue {
-                                    text
-                                    field {
-                                        ... on ProjectV2Field {
-                                            id
-                                            name
-                                        }
+                    }
+                    fieldValues(first: 20) {
+                        nodes {
+                            ... on ProjectV2ItemFieldTextValue {
+                                text
+                                field {
+                                    ... on ProjectV2Field {
+                                        id
+                                        name
                                     }
                                 }
-                                ... on ProjectV2ItemFieldSingleSelectValue {
-                                    name
-                                    field {
-                                        ... on ProjectV2SingleSelectField {
-                                            id
-                                            name
-                                        }
+                            }
+                            ... on ProjectV2ItemFieldSingleSelectValue {
+                                name
+                                field {
+                                    ... on ProjectV2SingleSelectField {
+                                        id
+                                        name
                                     }
                                 }
-                                ... on ProjectV2ItemFieldNumberValue {
-                                    number
-                                    field {
-                                        ... on ProjectV2Field {
-                                            id
-                                            name
-                                        }
+                            }
+                            ... on ProjectV2ItemFieldNumberValue {
+                                number
+                                field {
+                                    ... on ProjectV2Field {
+                                        id
+                                        name
                                     }
                                 }
-                                ... on ProjectV2ItemFieldDateValue {
-                                    date
-                                    field {
-                                        ... on ProjectV2Field {
-                                            id
-                                            name
-                                        }
+                            }
+                            ... on ProjectV2ItemFieldDateValue {
+                                date
+                                field {
+                                    ... on ProjectV2Field {
+                                        id
+                                        name
                                     }
                                 }
                             }
@@ -386,15 +388,14 @@ class GitHubProjectsManager:
         """
         
         result = self.execute_graphql(query, {
-            'projectId': project_id,
             'itemId': item_id
         })
         
-        if not result.get('node') or not result['node'].get('item'):
-            raise Exception(f"Project item {item_id} not found in project {project_id}")
+        if not result.get('node'):
+            raise Exception(f"Project item {item_id} not found")
         
         # Process the result to make it easier to work with
-        item = result['node']['item']
+        item = result['node']
         issue = item.get('content', {})
         
         # Extract field values into a readable format
