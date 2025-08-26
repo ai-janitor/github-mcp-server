@@ -8,6 +8,7 @@ INTEGRATION: Provides command-line tool after pip installation with shell comple
 import sys
 import argparse
 from .manager import GitHubProjectsManager
+from .bashrc_manager import BashrcManager
 
 # Import completion functions
 try:
@@ -38,6 +39,7 @@ def main():
     parser.add_argument('--version', action='version', version='%(prog)s 1.9.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
+    parser.add_argument('--update-bashrc', action='store_true', help='Automatically update .bashrc/.zshrc with extracted environment variables and completion setup (use with --extract-setup)')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -296,6 +298,54 @@ def main():
                     print("✨ Ready for workflow commands (also need GITHUB_PROJECT_ID for tasks):")
                     print("   gh-projects-v2 list-workflows")
                     print("   gh-projects-v2 trigger-workflow --workflow build.yml")
+                
+                # Handle bashrc update if requested
+                if args.update_bashrc:
+                    print()
+                    print("🔧 Updating shell configuration...")
+                    print("-" * 35)
+                    
+                    # Extract token and project_id from the export commands
+                    github_token = token or "PLEASE_SET_TOKEN"
+                    project_id = ""
+                    
+                    for cmd in result['export_commands']:
+                        if 'GITHUB_PROJECT_ID=' in cmd:
+                            project_id = cmd.split('GITHUB_PROJECT_ID=')[1].strip().strip("'\"")
+                            break
+                    
+                    if not project_id and result.get('project_info'):
+                        project_id = result['project_info']['id']
+                    
+                    if project_id:
+                        bashrc_manager = BashrcManager()
+                        
+                        # Ask for user confirmation before modifying shell files
+                        shell_file = bashrc_manager.detect_shell_file()
+                        print(f"This will modify: {shell_file}")
+                        print("A backup will be created automatically.")
+                        
+                        response = input("Continue? (y/N): ").lower().strip()
+                        if response in ['y', 'yes']:
+                            success, message, backup_path = bashrc_manager.update_shell_config(
+                                github_token, project_id
+                            )
+                            
+                            if success:
+                                print(f"✅ {message}")
+                                print()
+                                print("To activate the changes immediately:")
+                                print(f"  {bashrc_manager.get_shell_reload_instruction(shell_file)}")
+                                print()
+                                print("Or open a new terminal window.")
+                            else:
+                                print(f"❌ {message}")
+                                return 1
+                        else:
+                            print("Shell configuration update cancelled.")
+                    else:
+                        print("⚠️  Could not determine PROJECT_ID for shell configuration")
+                        print("   Please run without --update-bashrc and set environment variables manually")
                 
             else:
                 print("❌ Failed to parse GitHub URL")
