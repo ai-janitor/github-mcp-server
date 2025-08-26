@@ -398,18 +398,31 @@ def main():
             print()
             
             if items:
-                # Table format with columns: Status, Issue#, Title, Item ID
-                print(f"{'Status':<15} {'Issue#':<8} {'Title':<50} {'Item ID'}")
-                print("-" * 100)
+                # Table format with columns: Status, Issue#, Title, Last Updated, Item ID
+                print(f"{'Status':<15} {'Issue#':<8} {'Title':<40} {'Last Updated':<12} {'Item ID'}")
+                print("-" * 115)
                 
                 for item in items:
                     issue = item['issue']
                     status = item['status'][:14]  # Truncate status if too long
                     issue_num = f"#{issue['number']}"
-                    title = issue['title'][:49] + "..." if len(issue['title']) > 49 else issue['title']
+                    title = issue['title'][:39] + "..." if len(issue['title']) > 39 else issue['title']
                     item_id = item['id']
                     
-                    print(f"{status:<15} {issue_num:<8} {title:<50} {item_id}")
+                    # Format the updated date
+                    updated_at = issue.get('updatedAt', '')
+                    if updated_at:
+                        # Parse ISO date and format as MM-DD
+                        try:
+                            from datetime import datetime
+                            dt = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                            last_updated = dt.strftime('%m-%d')
+                        except:
+                            last_updated = updated_at[:10] if len(updated_at) >= 10 else updated_at
+                    else:
+                        last_updated = 'Unknown'
+                    
+                    print(f"{status:<15} {issue_num:<8} {title:<40} {last_updated:<12} {item_id}")
                 
                 print()
                 print(f"💡 To move a task: gh-projects-v2 move --item-id ITEM_ID --status \"New Status\"")

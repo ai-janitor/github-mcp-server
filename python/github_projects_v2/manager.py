@@ -212,6 +212,7 @@ class GitHubProjectsManager:
                                         title
                                         body
                                         url
+                                        updatedAt
                                     }}
                                 }}
                                 fieldValues(first: 20) {{
