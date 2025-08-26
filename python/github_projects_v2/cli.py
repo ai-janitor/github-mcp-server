@@ -24,7 +24,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.7.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.9.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
     
@@ -286,25 +286,26 @@ def main():
                     print(f"Filtering by status: {args.status_filter}")
             
             print(f"\nFound {len(items)} items:")
-            print("-" * 80)
+            print()
             
-            # Group by status
-            status_groups = {}
-            for item in items:
-                status = item['status']
-                if status not in status_groups:
-                    status_groups[status] = []
-                status_groups[status].append(item)
-            
-            for status, status_items in status_groups.items():
-                print(f"\n{status} ({len(status_items)} items):")
-                print("-" * 40)
-                for item in status_items:
+            if items:
+                # Table format with columns: Status, Issue#, Title, Item ID
+                print(f"{'Status':<15} {'Issue#':<8} {'Title':<50} {'Item ID'}")
+                print("-" * 100)
+                
+                for item in items:
                     issue = item['issue']
-                    print(f"  #{issue['number']} {issue['title']}")
-                    print(f"    Item ID: {item['id']}")
-                    print(f"    URL: {issue['url']}")
-                    print()
+                    status = item['status'][:14]  # Truncate status if too long
+                    issue_num = f"#{issue['number']}"
+                    title = issue['title'][:49] + "..." if len(issue['title']) > 49 else issue['title']
+                    item_id = item['id']
+                    
+                    print(f"{status:<15} {issue_num:<8} {title:<50} {item_id}")
+                
+                print()
+                print(f"💡 To move a task: gh-projects-v2 move --item-id ITEM_ID --status \"New Status\"")
+            else:
+                print("No items found matching your criteria.")
         
         elif args.command == 'statuses':
             print(f"Available statuses in project {project_id}:")
