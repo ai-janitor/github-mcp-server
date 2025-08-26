@@ -110,7 +110,7 @@ class GitHubProjectsManager:
                             }
                         }
                     }
-                    items(first: 50) {
+                    items(first: 100) {
                         nodes {
                             id
                             databaseId
@@ -153,6 +153,129 @@ class GitHubProjectsManager:
         """
         
         return self.execute_graphql(query, {'projectId': project_id})
+    
+    def get_all_project_items(self, project_id: str) -> List[Dict[str, Any]]:
+        """
+        Get ALL project items using proper GraphQL pagination (handles 1000+ items).
+        
+        Args:
+            project_id: GitHub Projects v2 project ID (PVT_xxx format)
+            
+        Returns:
+            List of all project items with their details
+        """
+        all_items = []
+        has_next_page = True
+        cursor = None
+        
+        while has_next_page:
+            # Build the query with cursor pagination
+            after_clause = f', after: "{cursor}"' if cursor else ""
+            
+            query = f"""
+            query($projectId: ID!) {{
+                node(id: $projectId) {{
+                    ... on ProjectV2 {{
+                        id
+                        title
+                        number
+                        fields(first: 20) {{
+                            nodes {{
+                                ... on ProjectV2Field {{
+                                    id
+                                    name
+                                    dataType
+                                }}
+                                ... on ProjectV2SingleSelectField {{
+                                    id
+                                    name
+                                    dataType
+                                    options {{
+                                        id
+                                        name
+                                    }}
+                                }}
+                            }}
+                        }}
+                        items(first: 100{after_clause}) {{
+                            pageInfo {{
+                                hasNextPage
+                                endCursor
+                            }}
+                            nodes {{
+                                id
+                                databaseId
+                                content {{
+                                    ... on Issue {{
+                                        id
+                                        number
+                                        title
+                                        body
+                                        url
+                                    }}
+                                }}
+                                fieldValues(first: 20) {{
+                                    nodes {{
+                                        ... on ProjectV2ItemFieldTextValue {{
+                                            text
+                                            field {{
+                                                ... on ProjectV2Field {{
+                                                    id
+                                                    name
+                                                }}
+                                            }}
+                                        }}
+                                        ... on ProjectV2ItemFieldSingleSelectValue {{
+                                            name
+                                            field {{
+                                                ... on ProjectV2SingleSelectField {{
+                                                    id
+                                                    name
+                                                }}
+                                            }}
+                                        }}
+                                    }}
+                                }}
+                            }}
+                        }}
+                    }}
+                }}
+            }}
+            """
+            
+            result = self.execute_graphql(query, {'projectId': project_id})
+            project = result['node']
+            
+            # Add items from this page
+            page_items = []
+            for item in project['items']['nodes']:
+                item_data = {
+                    'id': item['id'],
+                    'database_id': item['databaseId'],
+                    'issue': item['content'],
+                    'status': 'No Status'  # default
+                }
+                
+                # Find status field value
+                for field_value in item['fieldValues']['nodes']:
+                    if 'field' in field_value and field_value['field']['name'] == 'Status':
+                        if 'name' in field_value:
+                            item_data['status'] = field_value['name']
+                        break
+                
+                page_items.append(item_data)
+            
+            all_items.extend(page_items)
+            
+            # Check if there are more pages
+            page_info = project['items']['pageInfo']
+            has_next_page = page_info['hasNextPage']
+            cursor = page_info['endCursor']
+            
+            print(f"Fetched {len(page_items)} items (total: {len(all_items)})...")
+        
+        print(f"✅ Fetched all {len(all_items)} project items")
+        return all_items
     
     def move_task_to_status(self, project_id: str, item_id: str, status_name: str) -> Dict[str, Any]:
         """
@@ -288,28 +411,8 @@ class GitHubProjectsManager:
             >>> for item in items:
             ...     print(f"{item['status']}: {item['issue']['title']}")
         """
-        project_info = self.get_project_info(project_id)
-        project = project_info['node']
-        
-        items = []
-        for item in project['items']['nodes']:
-            item_data = {
-                'id': item['id'],
-                'database_id': item['databaseId'],
-                'issue': item['content'],
-                'status': 'No Status'  # default
-            }
-            
-            # Find status field value
-            for field_value in item['fieldValues']['nodes']:
-                if 'field' in field_value and field_value['field']['name'] == 'Status':
-                    if 'name' in field_value:
-                        item_data['status'] = field_value['name']
-                    break
-            
-            items.append(item_data)
-        
-        return items
+        # Use the new paginated method to get ALL items
+        return self.get_all_project_items(project_id)
     
     def search_project_items(self, project_id: str, search_terms: str, status_filter: str = None, exact_match: bool = False) -> List[Dict[str, Any]]:
         """
@@ -339,22 +442,10 @@ class GitHubProjectsManager:
         for item in all_items:
             issue = item['issue']
             
-            # Debug: Print issue structure (temporary debugging)
-            print(f"DEBUG - Issue data keys: {issue.keys() if issue else 'None'}")
-            if issue:
-                print(f"DEBUG - Title: '{issue.get('title', 'NO_TITLE')}'")
-                print(f"DEBUG - Body: '{(issue.get('body') or 'NO_BODY')[:100]}...'")
-            
             # Search in title and body (description)
             title = issue.get('title', '').lower()
             body = issue.get('body', '') or ''  # Handle None body
             body = body.lower()
-            
-            # Debug: Print what we're searching (temporary debugging)
-            print(f"DEBUG - Searching in title: '{title[:50]}...'")
-            print(f"DEBUG - Searching in body: '{body[:50]}...'")
-            print(f"DEBUG - Looking for: '{search_terms_lower}'")
-            print("---")
             
             # Check if search terms match title or body
             if exact_match:
