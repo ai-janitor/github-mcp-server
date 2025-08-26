@@ -398,16 +398,27 @@ def main():
             print()
             
             if items:
-                # Table format with columns: Status, Issue#, Title, Last Updated, Item ID
-                print(f"{'Status':<15} {'Issue#':<8} {'Title':<40} {'Last Updated':<12} {'Item ID'}")
-                print("-" * 115)
+                # Table format with columns: Status, Issue#, Title, Assigned, Last Updated, Item ID
+                print(f"{'Status':<15} {'Issue#':<8} {'Title':<35} {'Assigned':<12} {'Updated':<10} {'Item ID'}")
+                print("-" * 125)
                 
                 for item in items:
                     issue = item['issue']
                     status = item['status'][:14]  # Truncate status if too long
                     issue_num = f"#{issue['number']}"
-                    title = issue['title'][:39] + "..." if len(issue['title']) > 39 else issue['title']
+                    title = issue['title'][:34] + "..." if len(issue['title']) > 34 else issue['title']
                     item_id = item['id']
+                    
+                    # Format assignees
+                    assignees = issue.get('assignees', {}).get('nodes', [])
+                    if assignees:
+                        # Show first assignee, or count if multiple
+                        if len(assignees) == 1:
+                            assigned = assignees[0]['login'][:11]  # Truncate long usernames
+                        else:
+                            assigned = f"{assignees[0]['login'][:7]}+{len(assignees)-1}"  # "user+2" format
+                    else:
+                        assigned = 'Unassigned'
                     
                     # Format the updated date
                     updated_at = issue.get('updatedAt', '')
@@ -422,7 +433,7 @@ def main():
                     else:
                         last_updated = 'Unknown'
                     
-                    print(f"{status:<15} {issue_num:<8} {title:<40} {last_updated:<12} {item_id}")
+                    print(f"{status:<15} {issue_num:<8} {title:<35} {assigned:<12} {last_updated:<10} {item_id}")
                 
                 print()
                 print(f"💡 To move a task: gh-projects-v2 move --item-id ITEM_ID --status \"New Status\"")

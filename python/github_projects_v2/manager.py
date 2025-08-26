@@ -213,6 +213,12 @@ class GitHubProjectsManager:
                                         body
                                         url
                                         updatedAt
+                                        assignees(first: 5) {{
+                                            nodes {{
+                                                login
+                                                name
+                                            }}
+                                        }}
                                     }}
                                 }}
                                 fieldValues(first: 20) {{
