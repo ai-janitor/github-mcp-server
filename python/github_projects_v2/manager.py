@@ -339,10 +339,22 @@ class GitHubProjectsManager:
         for item in all_items:
             issue = item['issue']
             
+            # Debug: Print issue structure (temporary debugging)
+            print(f"DEBUG - Issue data keys: {issue.keys() if issue else 'None'}")
+            if issue:
+                print(f"DEBUG - Title: '{issue.get('title', 'NO_TITLE')}'")
+                print(f"DEBUG - Body: '{(issue.get('body') or 'NO_BODY')[:100]}...'")
+            
             # Search in title and body (description)
             title = issue.get('title', '').lower()
             body = issue.get('body', '') or ''  # Handle None body
             body = body.lower()
+            
+            # Debug: Print what we're searching (temporary debugging)
+            print(f"DEBUG - Searching in title: '{title[:50]}...'")
+            print(f"DEBUG - Searching in body: '{body[:50]}...'")
+            print(f"DEBUG - Looking for: '{search_terms_lower}'")
+            print("---")
             
             # Check if search terms match title or body
             if exact_match:
