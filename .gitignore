@@ -20,3 +20,9 @@ bin/
 # Claude configuration (contains secrets)
 CLAUDE.md
 claude.md
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
