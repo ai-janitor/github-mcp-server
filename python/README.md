@@ -79,19 +79,55 @@ gh-projects-v2 trigger-workflow --workflow deploy.yml --ref main
 gh-projects-v2 trigger-workflow --owner different-user --repo different-repo --workflow build.yml
 ```
 
-## How to Get Item IDs
+## How to Get Item IDs and Move Tasks
 
-When you run `gh-projects-v2 list`, you'll see output like this:
+### Step 1: See What Status Options You Have
+```bash
+gh-projects-v2 statuses
+```
+Output shows all available columns:
+```
+Available statuses in project:
+  - Backlog
+  - Todo
+  - In Progress  
+  - In Review
+  - Done
+  - Closed
+```
 
+### Step 2: List Tasks to See Their IDs
+```bash
+gh-projects-v2 list
+```
+You'll see output like this:
 ```
 Todo (3 items):
 ----------------------------------------
   #42 Fix login bug
     Item ID: PVTI_lAHODSyt1s4BBe5JzgeB2aw
     URL: https://github.com/owner/repo/issues/42
+
+  #55 Add user dashboard  
+    Item ID: PVTI_lAHODSyt1s4BBe5JzgeB3cx
+    URL: https://github.com/owner/repo/issues/55
 ```
 
-Copy the **Item ID** to use in move commands.
+### Step 3: Move Any Task to Any Status
+Copy the **Item ID** and move to any status from Step 1:
+```bash
+# Move to any available status
+gh-projects-v2 move --item-id PVTI_lAHODSyt1s4BBe5JzgeB2aw --status "Backlog"
+gh-projects-v2 move --item-id PVTI_lAHODSyt1s4BBe5JzgeB2aw --status "In Review"  
+gh-projects-v2 move --item-id PVTI_lAHODSyt1s4BBe5JzgeB2aw --status "Closed"
+```
+
+**Pro Tip:** Filter first to find specific tasks:
+```bash
+gh-projects-v2 list --status-filter "Todo"  # Find tasks in Todo
+# Copy Item ID from output, then move it
+gh-projects-v2 move --item-id PVTI_xxx --status "In Progress"
+```
 
 ## Common Tasks
 
