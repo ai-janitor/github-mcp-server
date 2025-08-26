@@ -17,7 +17,7 @@ except FileNotFoundError:
 
 setup(
     name="github-projects-v2",
-    version="1.11.1",
+    version="1.12.0",
     author="GitHub MCP Server",
     author_email="",
     description="Python library for GitHub Projects v2 task management",
@@ -42,6 +42,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "requests>=2.25.0",
+        "argcomplete>=1.12.0",
     ],
     extras_require={
         "dev": [

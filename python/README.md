@@ -288,6 +288,70 @@ export GITHUB_PROJECT_ID=PVT_your_project_id
 gh-projects-v2 statuses
 ```
 
+## Shell Completion (Auto-complete)
+
+The tool supports smart auto-completion for faster workflow:
+
+### Setup Completion
+
+**Bash:**
+```bash
+# One-time setup
+eval "$(register-python-argcomplete gh-projects-v2)"
+
+# Or add to ~/.bashrc for permanent setup
+echo 'eval "$(register-python-argcomplete gh-projects-v2)"' >> ~/.bashrc
+```
+
+**Zsh:**
+```bash
+# One-time setup  
+eval "$(register-python-argcomplete gh-projects-v2)"
+
+# Or add to ~/.zshrc for permanent setup
+echo 'eval "$(register-python-argcomplete gh-projects-v2)"' >> ~/.zshrc
+```
+
+### What Gets Completed
+
+- **Commands**: `list`, `detail`, `move`, `statuses`, etc.
+- **Item IDs**: Real `PVTI_xxx` values from your project
+- **Status names**: "In Progress", "Done", "Todo", etc.
+- **Workflow files**: `build.yml`, `deploy.yml`, etc.
+- **Branch names**: `main`, `development`, `staging`, etc.
+
+### Using Completion
+
+```bash
+gh-projects-v2 <TAB>
+# Shows: list, detail, move, statuses, comment, etc.
+
+gh-projects-v2 detail --item-id <TAB> 
+# Shows: PVTI_lAHODSyt1s4BBe5JzgeB2aw, PVTI_lAHODSyt1s4BBe5JzgeB3cx, ...
+
+gh-projects-v2 move --item-id PVTI_xxx --status <TAB>
+# Shows: "Todo", "In Progress", "Done", "Backlog", etc.
+
+gh-projects-v2 trigger-workflow --workflow <TAB>
+# Shows: build.yml, deploy.yml, test.yml, etc.
+```
+
+### Cache Management
+
+Completion uses caching for fast responses:
+
+```bash
+# Refresh cache for faster completion
+gh-projects-v2 cache refresh --project-id $GITHUB_PROJECT_ID
+gh-projects-v2 cache refresh --owner myuser --repo myrepo
+
+# View cache information
+gh-projects-v2 cache info
+
+# Clear cache if needed
+gh-projects-v2 cache clear
+```
+
 ## Python Scripts
 
 If you want to write Python scripts instead of using command line:

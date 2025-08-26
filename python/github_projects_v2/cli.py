@@ -1,13 +1,24 @@
 """
 UNDERSTANDING: Command-line interface for GitHub Projects v2 task management
-DEPENDENCIES: argparse for CLI, manager module for API operations
+DEPENDENCIES: argparse for CLI, manager module for API operations, argcomplete for shell completion
 EXPORTS: main() function and CLI entry point
-INTEGRATION: Provides command-line tool after pip installation
+INTEGRATION: Provides command-line tool after pip installation with shell completion support
 """
 
 import sys
 import argparse
 from .manager import GitHubProjectsManager
+
+# Import completion functions
+try:
+    import argcomplete
+    from .completers import (
+        item_id_completer, status_completer, workflow_completer, 
+        branch_completer, issue_url_completer
+    )
+    COMPLETION_AVAILABLE = True
+except ImportError:
+    COMPLETION_AVAILABLE = False
 
 
 def main():
@@ -32,30 +43,52 @@ def main():
     
     # Move task command
     move_parser = subparsers.add_parser('move', help='Move task to different status')
-    move_parser.add_argument('--item-id', required=True, help='Project item ID')
-    move_parser.add_argument('--status', required=True, help='Target status')
+    item_id_arg = move_parser.add_argument('--item-id', required=True, help='Project item ID')
+    status_arg = move_parser.add_argument('--status', required=True, help='Target status')
     move_parser.add_argument('--comment', help='Optional comment to add to the issue')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        item_id_arg.completer = item_id_completer
+        status_arg.completer = status_completer
     
     # Batch move command
     batch_parser = subparsers.add_parser('batch-move', help='Move multiple tasks to same status')
-    batch_parser.add_argument('--item-ids', required=True, nargs='+', help='List of project item IDs')
-    batch_parser.add_argument('--status', required=True, help='Target status for all items')
+    batch_item_ids_arg = batch_parser.add_argument('--item-ids', required=True, nargs='+', help='List of project item IDs')
+    batch_status_arg = batch_parser.add_argument('--status', required=True, help='Target status for all items')
     batch_parser.add_argument('--comment', help='Optional comment to add to all issues')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        batch_item_ids_arg.completer = item_id_completer
+        batch_status_arg.completer = status_completer
     
     # Add comment command
     comment_parser = subparsers.add_parser('comment', help='Add comment to issue')
-    comment_parser.add_argument('--issue-url', required=True, help='GitHub issue URL')
+    issue_url_arg = comment_parser.add_argument('--issue-url', required=True, help='GitHub issue URL')
     comment_parser.add_argument('--message', required=True, help='Comment message')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        issue_url_arg.completer = issue_url_completer
     
     # List items command
     list_parser = subparsers.add_parser('list', help='List all project items')
-    list_parser.add_argument('--status-filter', help='Filter by status name')
+    list_status_filter_arg = list_parser.add_argument('--status-filter', help='Filter by status name')
     list_parser.add_argument('--search', help='Search for keywords in task titles and descriptions')
     list_parser.add_argument('--exact', action='store_true', help='Search for exact phrase instead of keywords')
     
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        list_status_filter_arg.completer = status_completer
+    
     # Detail command
     detail_parser = subparsers.add_parser('detail', help='Show detailed information for a specific task')
-    detail_parser.add_argument('--item-id', required=True, help='Project item ID (PVTI_xxx format)')
+    detail_item_id_arg = detail_parser.add_argument('--item-id', required=True, help='Project item ID (PVTI_xxx format)')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        detail_item_id_arg.completer = item_id_completer
     
     # List statuses command
     statuses_parser = subparsers.add_parser('statuses', help='List available status options')
@@ -64,22 +97,36 @@ def main():
     workflow_parser = subparsers.add_parser('trigger-workflow', help='Trigger GitHub Actions workflow')
     workflow_parser.add_argument('--owner', help='Repository owner (username or organization) - overrides GITHUB_OWNER env var')
     workflow_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
-    workflow_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
-    workflow_parser.add_argument('--branch', default='main', help='Git branch to run workflow on (default: main)')
+    workflow_arg = workflow_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
+    workflow_branch_arg = workflow_parser.add_argument('--branch', default='main', help='Git branch to run workflow on (default: main)')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        workflow_arg.completer = workflow_completer
+        workflow_branch_arg.completer = branch_completer
     
     # List workflows command
     list_workflows_parser = subparsers.add_parser('list-workflows', help='List all workflows in repository')
     list_workflows_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
     list_workflows_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
-    list_workflows_parser.add_argument('--branch', help='Show workflows available in specific branch')
+    list_wf_branch_arg = list_workflows_parser.add_argument('--branch', help='Show workflows available in specific branch')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        list_wf_branch_arg.completer = branch_completer
     
     # List workflow runs command
     list_runs_parser = subparsers.add_parser('list-workflow-runs', help='List recent runs for a workflow')
     list_runs_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
     list_runs_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
-    list_runs_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
-    list_runs_parser.add_argument('--branch', help='Filter runs by branch')
+    list_runs_wf_arg = list_runs_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
+    list_runs_branch_arg = list_runs_parser.add_argument('--branch', help='Filter runs by branch')
     list_runs_parser.add_argument('--limit', type=int, default=10, help='Maximum number of runs to show (default: 10)')
+    
+    # Add completers if available
+    if COMPLETION_AVAILABLE:
+        list_runs_wf_arg.completer = workflow_completer
+        list_runs_branch_arg.completer = branch_completer
     
     # Get workflow run command
     get_run_parser = subparsers.add_parser('get-workflow-run', help='Get details for a specific workflow run')
@@ -98,6 +145,27 @@ def main():
     get_logs_parser.add_argument('--run-id', help='Specific run ID')
     get_logs_parser.add_argument('--branch', help='Filter runs by branch (when using --last)')
     get_logs_parser.add_argument('--last', type=int, default=1, help='Get logs from Nth most recent run (default: 1 = most recent)')
+    
+    # Cache management command
+    cache_parser = subparsers.add_parser('cache', help='Manage completion cache')
+    cache_subparsers = cache_parser.add_subparsers(dest='cache_action', help='Cache actions')
+    
+    # Cache refresh command
+    cache_refresh_parser = cache_subparsers.add_parser('refresh', help='Refresh completion cache')
+    cache_refresh_parser.add_argument('--project-id', help='Refresh cache for specific project ID')
+    cache_refresh_parser.add_argument('--owner', help='Repository owner for workflow cache')
+    cache_refresh_parser.add_argument('--repo', help='Repository name for workflow cache')
+    
+    # Cache clear command
+    cache_clear_parser = cache_subparsers.add_parser('clear', help='Clear completion cache')
+    cache_clear_parser.add_argument('--pattern', help='Clear cache files matching pattern (clears all if not specified)')
+    
+    # Cache info command
+    cache_info_parser = cache_subparsers.add_parser('info', help='Show completion cache information')
+    
+    # Enable shell completion if available
+    if COMPLETION_AVAILABLE:
+        argcomplete.autocomplete(parser)
     
     args = parser.parse_args()
     
@@ -545,6 +613,77 @@ def main():
             print("="*80)
             print(logs)
             print("="*80)
+        
+        elif args.command == 'cache':
+            from .completion_cache import CompletionCache
+            cache = CompletionCache()
+            
+            if args.cache_action == 'refresh':
+                print("Refreshing completion cache...")
+                
+                # Refresh project cache if specified
+                project_id = args.project_id or os.getenv('GITHUB_PROJECT_ID')
+                if project_id:
+                    print(f"Refreshing cache for project {project_id}...")
+                    try:
+                        # Refresh item IDs
+                        items = manager.list_project_items(project_id)
+                        item_ids = [item['id'] for item in items if 'id' in item]
+                        cache.set_item_ids(project_id, item_ids)
+                        print(f"✅ Cached {len(item_ids)} item IDs")
+                        
+                        # Refresh statuses
+                        statuses = manager.get_available_statuses(project_id)
+                        cache.set_statuses(project_id, statuses)
+                        print(f"✅ Cached {len(statuses)} status options")
+                        
+                    except Exception as e:
+                        print(f"❌ Error refreshing project cache: {e}")
+                
+                # Refresh workflow cache if specified
+                owner = args.owner or os.getenv('GITHUB_OWNER')
+                repo = args.repo or os.getenv('GITHUB_REPO')
+                if owner and repo:
+                    print(f"Refreshing workflow cache for {owner}/{repo}...")
+                    try:
+                        workflows = manager.list_workflows(owner, repo)
+                        workflow_files = [wf['path'].split('/')[-1] for wf in workflows if 'path' in wf]
+                        cache.set_workflows(owner, repo, workflow_files)
+                        print(f"✅ Cached {len(workflow_files)} workflow files")
+                        
+                    except Exception as e:
+                        print(f"❌ Error refreshing workflow cache: {e}")
+                
+                if not project_id and not (owner and repo):
+                    print("❌ Specify --project-id or --owner/--repo to refresh cache")
+                    return 1
+            
+            elif args.cache_action == 'clear':
+                print("Clearing completion cache...")
+                removed = cache.clear_cache(args.pattern)
+                if args.pattern:
+                    print(f"✅ Removed {removed} cache files matching '{args.pattern}'")
+                else:
+                    print(f"✅ Removed {removed} cache files")
+            
+            elif args.cache_action == 'info':
+                print("Completion Cache Information")
+                print("="*40)
+                cache_info = cache.get_cache_info()
+                
+                if not cache_info:
+                    print("No cache files found")
+                else:
+                    for cache_key, info in cache_info.items():
+                        print(f"\nCache: {cache_key}")
+                        print(f"  Size: {info['size_bytes']} bytes")
+                        print(f"  Age: {int(info['age_seconds'])} seconds")
+                        print(f"  Valid (fast TTL): {'Yes' if info['valid_fast'] else 'No'}")
+                        print(f"  Valid (slow TTL): {'Yes' if info['valid_slow'] else 'No'}")
+            
+            else:
+                print("❌ Unknown cache action. Use: refresh, clear, or info")
+                return 1
         
         return 0
         
