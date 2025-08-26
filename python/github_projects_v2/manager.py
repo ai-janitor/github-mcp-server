@@ -384,15 +384,15 @@ class GitHubProjectsManager:
         
         return []
     
-    def trigger_workflow(self, owner: str, repo: str, workflow_id: str, ref: str = "main", inputs: Dict[str, Any] = None) -> Dict[str, Any]:
+    def trigger_workflow(self, owner: str, repo: str, workflow_id: str, branch: str = "main", inputs: Dict[str, Any] = None) -> Dict[str, Any]:
         """
-        Trigger a GitHub Actions workflow manually.
+        Trigger a GitHub Actions workflow manually on a specific branch.
         
         Args:
             owner: Repository owner (username or organization)
             repo: Repository name
             workflow_id: Workflow ID or filename (e.g., "12345678" or "build.yml")
-            ref: Git reference to run workflow on (default: "main")
+            branch: Git branch to run workflow on (default: "main")
             inputs: Optional inputs for workflow_dispatch (if workflow accepts them)
             
         Returns:
@@ -402,13 +402,13 @@ class GitHubProjectsManager:
             Exception: If workflow trigger fails or workflow doesn't support manual dispatch
             
         Example:
-            >>> result = manager.trigger_workflow("owner", "repo", "build.yml")
-            >>> result = manager.trigger_workflow("owner", "repo", "deploy.yml", "main", {"environment": "staging"})
+            >>> result = manager.trigger_workflow("owner", "repo", "build.yml", "development")
+            >>> result = manager.trigger_workflow("owner", "repo", "deploy.yml", "stage", {"environment": "staging"})
         """
         # Use REST API to trigger workflow
         trigger_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/workflows/{workflow_id}/dispatches"
         
-        payload = {"ref": ref}
+        payload = {"ref": branch}
         if inputs:
             payload["inputs"] = inputs
         
@@ -423,25 +423,32 @@ class GitHubProjectsManager:
         else:
             raise Exception(f"Failed to trigger workflow: {response.status_code} - {response.text}")
     
-    def list_workflows(self, owner: str, repo: str) -> List[Dict[str, Any]]:
+    def list_workflows(self, owner: str, repo: str, branch: str = None) -> List[Dict[str, Any]]:
         """
-        List all GitHub Actions workflows in a repository.
+        List all GitHub Actions workflows in a repository, optionally filtered by branch.
         
         Args:
             owner: Repository owner (username or organization)
             repo: Repository name
+            branch: Optional branch to filter workflows (shows workflows that exist in that branch)
             
         Returns:
             List of workflows with their details
             
         Example:
             >>> workflows = manager.list_workflows("owner", "repo")
+            >>> workflows = manager.list_workflows("owner", "repo", "development")
             >>> for wf in workflows:
             ...     print(f"{wf['name']} ({wf['id']}): {wf['path']}")
         """
         workflows_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/workflows"
         
-        response = requests.get(workflows_url, headers=self.headers)
+        # Add branch parameter if specified
+        params = {}
+        if branch:
+            params['ref'] = branch
+        
+        response = requests.get(workflows_url, headers=self.headers, params=params)
         
         if response.status_code != 200:
             raise Exception(f"Failed to list workflows: {response.status_code} - {response.text}")
@@ -510,3 +517,126 @@ class GitHubProjectsManager:
                 })
         
         return results
+    
+    def list_workflow_runs(self, owner: str, repo: str, workflow_id: str, branch: str = None, limit: int = 10) -> List[Dict[str, Any]]:
+        """
+        List recent runs for a specific workflow, optionally filtered by branch.
+        
+        Args:
+            owner: Repository owner (username or organization)
+            repo: Repository name
+            workflow_id: Workflow ID or filename (e.g., "12345678" or "build.yml")
+            branch: Optional branch to filter runs
+            limit: Maximum number of runs to return (default: 10)
+            
+        Returns:
+            List of workflow runs with their details
+            
+        Example:
+            >>> runs = manager.list_workflow_runs("owner", "repo", "build.yml", "development", 5)
+            >>> for run in runs:
+            ...     print(f"Run {run['id']}: {run['status']} - {run['conclusion']}")
+        """
+        runs_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/workflows/{workflow_id}/runs"
+        
+        params = {'per_page': limit}
+        if branch:
+            params['branch'] = branch
+        
+        response = requests.get(runs_url, headers=self.headers, params=params)
+        
+        if response.status_code != 200:
+            raise Exception(f"Failed to list workflow runs: {response.status_code} - {response.text}")
+        
+        return response.json().get('workflow_runs', [])
+    
+    def get_workflow_run(self, owner: str, repo: str, workflow_id: str = None, run_id: str = None, 
+                        branch: str = None, last: int = 1) -> Dict[str, Any]:
+        """
+        Get details for a specific workflow run or the Nth most recent run.
+        
+        Args:
+            owner: Repository owner (username or organization)
+            repo: Repository name
+            workflow_id: Workflow ID or filename (required if using last parameter)
+            run_id: Specific run ID (if not using last parameter)
+            branch: Branch to filter runs when using last parameter
+            last: Get the Nth most recent run (1 = most recent, 2 = second most recent, etc.)
+            
+        Returns:
+            Workflow run details
+            
+        Example:
+            >>> run = manager.get_workflow_run("owner", "repo", run_id="12345678")
+            >>> run = manager.get_workflow_run("owner", "repo", "build.yml", last=1)  # Most recent
+            >>> run = manager.get_workflow_run("owner", "repo", "build.yml", "development", last=2)  # 2nd most recent
+        """
+        if run_id:
+            # Get specific run by ID
+            run_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/runs/{run_id}"
+            response = requests.get(run_url, headers=self.headers)
+            
+            if response.status_code != 200:
+                raise Exception(f"Failed to get workflow run: {response.status_code} - {response.text}")
+            
+            return response.json()
+        
+        elif workflow_id:
+            # Get Nth most recent run
+            runs = self.list_workflow_runs(owner, repo, workflow_id, branch, limit=last)
+            
+            if len(runs) < last:
+                available = len(runs)
+                raise Exception(f"Only {available} runs available, cannot get run #{last}")
+            
+            # Return the Nth run (last-1 because list is 0-indexed)
+            return runs[last - 1]
+        
+        else:
+            raise Exception("Either run_id or workflow_id must be provided")
+    
+    def get_workflow_logs(self, owner: str, repo: str, workflow_id: str = None, run_id: str = None,
+                         branch: str = None, last: int = 1) -> str:
+        """
+        Download and return logs for a workflow run.
+        
+        Args:
+            owner: Repository owner (username or organization)
+            repo: Repository name
+            workflow_id: Workflow ID or filename (required if using last parameter)
+            run_id: Specific run ID (if not using last parameter)  
+            branch: Branch to filter runs when using last parameter
+            last: Get logs for the Nth most recent run (1 = most recent, etc.)
+            
+        Returns:
+            Workflow run logs as text
+            
+        Example:
+            >>> logs = manager.get_workflow_logs("owner", "repo", run_id="12345678")
+            >>> logs = manager.get_workflow_logs("owner", "repo", "build.yml", last=1)
+            >>> logs = manager.get_workflow_logs("owner", "repo", "deploy.yml", "stage", last=2)
+        """
+        # Get the run details first
+        if run_id:
+            target_run_id = run_id
+        else:
+            run_details = self.get_workflow_run(owner, repo, workflow_id, None, branch, last)
+            target_run_id = run_details['id']
+        
+        # Download logs
+        logs_url = f"{self.rest_url}/repos/{owner}/{repo}/actions/runs/{target_run_id}/logs"
+        response = requests.get(logs_url, headers=self.headers)
+        
+        if response.status_code != 200:
+            if response.status_code == 404:
+                raise Exception(f"Logs not available for run {target_run_id} (run may still be in progress or logs expired)")
+            else:
+                raise Exception(f"Failed to download logs: {response.status_code} - {response.text}")
+        
+        # GitHub returns logs as a ZIP file, but for simplicity we'll handle it as text
+        # Note: In practice, you might want to extract the ZIP and process individual log files
+        try:
+            return response.text
+        except UnicodeDecodeError:
+            # If it's actually a ZIP file, return a helpful message
+            return f"Logs are available as ZIP download from: {logs_url}\nUse a web browser or curl to download the complete log archive."

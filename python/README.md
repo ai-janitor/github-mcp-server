@@ -105,17 +105,50 @@ gh-projects-v2 comment --issue-url "https://github.com/owner/repo/issues/123" --
 gh-projects-v2 statuses
 ```
 
-### Trigger GitHub Workflows
+### GitHub Workflow Management
+
+#### List Available Workflows
 ```bash
-# See what workflows are available
+# See all workflows in repository
 gh-projects-v2 list-workflows
 
-# Trigger a workflow
-gh-projects-v2 trigger-workflow --workflow build.yml
-gh-projects-v2 trigger-workflow --workflow deploy.yml --ref main
+# See workflows available in specific branch
+gh-projects-v2 list-workflows --branch development
+gh-projects-v2 list-workflows --branch stage
+```
 
-# Or override the repo for one command
-gh-projects-v2 trigger-workflow --owner different-user --repo different-repo --workflow build.yml
+#### Trigger Workflows
+```bash
+# Trigger workflow on main branch (default)
+gh-projects-v2 trigger-workflow --workflow build.yml
+
+# Trigger workflow on specific branch
+gh-projects-v2 trigger-workflow --workflow deploy.yml --branch stage
+gh-projects-v2 trigger-workflow --workflow build.yml --branch development
+
+# Override repo for one command
+gh-projects-v2 trigger-workflow --owner different-user --repo different-repo --workflow build.yml --branch main
+```
+
+#### Monitor Workflow Runs
+```bash
+# List recent runs for a workflow
+gh-projects-v2 list-workflow-runs --workflow build.yml
+gh-projects-v2 list-workflow-runs --workflow deploy.yml --branch stage --limit 5
+
+# Get details of most recent run
+gh-projects-v2 get-workflow-run --workflow build.yml --last 1
+gh-projects-v2 get-workflow-run --workflow deploy.yml --branch production --last 2
+
+# Get details of specific run
+gh-projects-v2 get-workflow-run --run-id 12345678
+
+# Download logs from most recent run
+gh-projects-v2 get-workflow-logs --workflow build.yml --last 1
+gh-projects-v2 get-workflow-logs --workflow deploy.yml --branch stage --last 2
+
+# Download logs from specific run
+gh-projects-v2 get-workflow-logs --run-id 12345678
 ```
 
 ## How to Get Item IDs and Move Tasks
@@ -191,6 +224,21 @@ gh-projects-v2 list --status-filter "In Progress"
 
 # 2. Move finished items to done
 gh-projects-v2 batch-move --item-ids PVTI_finished1 PVTI_finished2 --status "Done" --comment "Weekly cleanup"
+```
+
+### Workflow Deployment Example
+```bash
+# 1. Trigger deployment to staging
+gh-projects-v2 trigger-workflow --workflow deploy.yml --branch stage
+
+# 2. Monitor the deployment
+gh-projects-v2 get-workflow-run --workflow deploy.yml --branch stage --last 1
+
+# 3. Check deployment logs if needed
+gh-projects-v2 get-workflow-logs --workflow deploy.yml --branch stage --last 1
+
+# 4. If successful, trigger production deployment
+gh-projects-v2 trigger-workflow --workflow deploy.yml --branch production
 ```
 
 ## Getting Your GitHub Token

@@ -24,7 +24,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.3.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.4.0')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -59,12 +59,39 @@ def main():
     workflow_parser.add_argument('--owner', help='Repository owner (username or organization) - overrides GITHUB_OWNER env var')
     workflow_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
     workflow_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
-    workflow_parser.add_argument('--ref', default='main', help='Git reference to run on (default: main)')
+    workflow_parser.add_argument('--branch', default='main', help='Git branch to run workflow on (default: main)')
     
     # List workflows command
     list_workflows_parser = subparsers.add_parser('list-workflows', help='List all workflows in repository')
     list_workflows_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
     list_workflows_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
+    list_workflows_parser.add_argument('--branch', help='Show workflows available in specific branch')
+    
+    # List workflow runs command
+    list_runs_parser = subparsers.add_parser('list-workflow-runs', help='List recent runs for a workflow')
+    list_runs_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
+    list_runs_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
+    list_runs_parser.add_argument('--workflow', required=True, help='Workflow ID or filename (e.g., build.yml)')
+    list_runs_parser.add_argument('--branch', help='Filter runs by branch')
+    list_runs_parser.add_argument('--limit', type=int, default=10, help='Maximum number of runs to show (default: 10)')
+    
+    # Get workflow run command
+    get_run_parser = subparsers.add_parser('get-workflow-run', help='Get details for a specific workflow run')
+    get_run_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
+    get_run_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
+    get_run_parser.add_argument('--workflow', help='Workflow ID or filename (required if using --last)')
+    get_run_parser.add_argument('--run-id', help='Specific run ID')
+    get_run_parser.add_argument('--branch', help='Filter runs by branch (when using --last)')
+    get_run_parser.add_argument('--last', type=int, default=1, help='Get Nth most recent run (default: 1 = most recent)')
+    
+    # Get workflow logs command
+    get_logs_parser = subparsers.add_parser('get-workflow-logs', help='Download logs for a workflow run')
+    get_logs_parser.add_argument('--owner', help='Repository owner - overrides GITHUB_OWNER env var')
+    get_logs_parser.add_argument('--repo', help='Repository name - overrides GITHUB_REPO env var')
+    get_logs_parser.add_argument('--workflow', help='Workflow ID or filename (required if using --last)')
+    get_logs_parser.add_argument('--run-id', help='Specific run ID')
+    get_logs_parser.add_argument('--branch', help='Filter runs by branch (when using --last)')
+    get_logs_parser.add_argument('--last', type=int, default=1, help='Get logs from Nth most recent run (default: 1 = most recent)')
     
     args = parser.parse_args()
     
@@ -189,8 +216,8 @@ def main():
                 print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
                 return 1
             
-            print(f"Triggering workflow '{args.workflow}' in {owner}/{repo}...")
-            result = manager.trigger_workflow(owner, repo, args.workflow, args.ref)
+            print(f"Triggering workflow '{args.workflow}' in {owner}/{repo} on branch '{args.branch}'...")
+            result = manager.trigger_workflow(owner, repo, args.workflow, args.branch)
             print(f"✅ {result['message']}")
         
         elif args.command == 'list-workflows':
@@ -207,8 +234,9 @@ def main():
                 print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
                 return 1
             
-            print(f"Listing workflows in {owner}/{repo}:")
-            workflows = manager.list_workflows(owner, repo)
+            branch_text = f" (branch: {args.branch})" if args.branch else ""
+            print(f"Listing workflows in {owner}/{repo}{branch_text}:")
+            workflows = manager.list_workflows(owner, repo, args.branch)
             
             if not workflows:
                 print("No workflows found in this repository.")
@@ -223,6 +251,112 @@ def main():
                     if 'badge_url' in wf:
                         print(f"  Badge: {wf['badge_url']}")
                     print()
+        
+        elif args.command == 'list-workflow-runs':
+            # Get owner/repo from arguments or environment variables
+            owner = args.owner or os.getenv('GITHUB_OWNER')
+            repo = args.repo or os.getenv('GITHUB_REPO')
+            
+            if not owner:
+                print("❌ Error: Repository owner required", file=sys.stderr)
+                print("Use --owner USERNAME or set GITHUB_OWNER environment variable", file=sys.stderr)
+                return 1
+            if not repo:
+                print("❌ Error: Repository name required", file=sys.stderr)
+                print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
+                return 1
+            
+            branch_text = f" (branch: {args.branch})" if args.branch else ""
+            print(f"Listing recent runs for workflow '{args.workflow}' in {owner}/{repo}{branch_text}:")
+            
+            runs = manager.list_workflow_runs(owner, repo, args.workflow, args.branch, args.limit)
+            
+            if not runs:
+                print("No workflow runs found.")
+            else:
+                print(f"\nFound {len(runs)} recent runs:")
+                print("-" * 100)
+                for run in runs:
+                    status = run.get('status', 'unknown')
+                    conclusion = run.get('conclusion', 'N/A')
+                    branch = run.get('head_branch', 'N/A')
+                    created = run.get('created_at', 'N/A')
+                    print(f"Run ID: {run['id']}")
+                    print(f"  Status: {status} | Conclusion: {conclusion}")
+                    print(f"  Branch: {branch} | Created: {created}")
+                    if run.get('html_url'):
+                        print(f"  URL: {run['html_url']}")
+                    print()
+        
+        elif args.command == 'get-workflow-run':
+            # Get owner/repo from arguments or environment variables
+            owner = args.owner or os.getenv('GITHUB_OWNER')
+            repo = args.repo or os.getenv('GITHUB_REPO')
+            
+            if not owner:
+                print("❌ Error: Repository owner required", file=sys.stderr)
+                print("Use --owner USERNAME or set GITHUB_OWNER environment variable", file=sys.stderr)
+                return 1
+            if not repo:
+                print("❌ Error: Repository name required", file=sys.stderr)
+                print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
+                return 1
+            
+            if args.run_id:
+                print(f"Getting workflow run {args.run_id} details:")
+                run = manager.get_workflow_run(owner, repo, run_id=args.run_id)
+            elif args.workflow:
+                ordinal = "st" if args.last == 1 else "nd" if args.last == 2 else "rd" if args.last == 3 else "th"
+                branch_text = f" from branch {args.branch}" if args.branch else ""
+                print(f"Getting {args.last}{ordinal} most recent run for '{args.workflow}'{branch_text}:")
+                run = manager.get_workflow_run(owner, repo, args.workflow, branch=args.branch, last=args.last)
+            else:
+                print("❌ Error: Either --run-id or --workflow must be provided", file=sys.stderr)
+                return 1
+            
+            print(f"\nWorkflow Run Details:")
+            print("-" * 50)
+            print(f"Run ID: {run['id']}")
+            print(f"Status: {run.get('status', 'unknown')}")
+            print(f"Conclusion: {run.get('conclusion', 'N/A')}")
+            print(f"Branch: {run.get('head_branch', 'N/A')}")
+            print(f"Commit: {run.get('head_sha', 'N/A')[:8]}")
+            print(f"Created: {run.get('created_at', 'N/A')}")
+            print(f"Updated: {run.get('updated_at', 'N/A')}")
+            if run.get('html_url'):
+                print(f"URL: {run['html_url']}")
+        
+        elif args.command == 'get-workflow-logs':
+            # Get owner/repo from arguments or environment variables
+            owner = args.owner or os.getenv('GITHUB_OWNER')
+            repo = args.repo or os.getenv('GITHUB_REPO')
+            
+            if not owner:
+                print("❌ Error: Repository owner required", file=sys.stderr)
+                print("Use --owner USERNAME or set GITHUB_OWNER environment variable", file=sys.stderr)
+                return 1
+            if not repo:
+                print("❌ Error: Repository name required", file=sys.stderr)
+                print("Use --repo REPONAME or set GITHUB_REPO environment variable", file=sys.stderr)
+                return 1
+            
+            if args.run_id:
+                print(f"Downloading logs for workflow run {args.run_id}:")
+                logs = manager.get_workflow_logs(owner, repo, run_id=args.run_id)
+            elif args.workflow:
+                ordinal = "st" if args.last == 1 else "nd" if args.last == 2 else "rd" if args.last == 3 else "th"
+                branch_text = f" from branch {args.branch}" if args.branch else ""
+                print(f"Downloading logs for {args.last}{ordinal} most recent run of '{args.workflow}'{branch_text}:")
+                logs = manager.get_workflow_logs(owner, repo, args.workflow, branch=args.branch, last=args.last)
+            else:
+                print("❌ Error: Either --run-id or --workflow must be provided", file=sys.stderr)
+                return 1
+            
+            print("\n" + "="*80)
+            print("WORKFLOW LOGS")
+            print("="*80)
+            print(logs)
+            print("="*80)
         
         return 0
         
