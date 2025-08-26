@@ -245,8 +245,13 @@ gh-projects-v2 trigger-workflow --workflow deploy.yml --branch production
 
 1. Go to GitHub Settings → Developer settings → Personal access tokens
 2. Click "Generate new token (classic)"
-3. Give it `project` and `repo` permissions
+3. **Required permissions:**
+   - ✅ **`repo`** - Access to repositories and issues
+   - ✅ **`project`** - Access to GitHub Projects v2
+   - ✅ **`actions`** - Trigger and monitor GitHub Actions workflows
 4. Copy the token (starts with `ghp_`)
+
+**Note:** The `actions` permission is required for workflow management features (trigger-workflow, list-workflow-runs, get-workflow-logs). If you only need task management, `repo` and `project` permissions are sufficient.
 
 ## Getting Your Project ID
 
