@@ -24,7 +24,8 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.4.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.5.0')
+    parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     
     subparsers = parser.add_subparsers(dest='command', help='Available commands')
     
@@ -94,6 +95,43 @@ def main():
     get_logs_parser.add_argument('--last', type=int, default=1, help='Get logs from Nth most recent run (default: 1 = most recent)')
     
     args = parser.parse_args()
+    
+    if args.help_setup:
+        print("GitHub Projects v2 CLI - Environment Setup Guide")
+        print("=" * 55)
+        print()
+        print("Required Environment Variables:")
+        print("  export GITHUB_TOKEN=your_personal_token")
+        print("  export GITHUB_PROJECT_ID=your_project_id")
+        print()
+        print("Optional Environment Variables (can override per command):")
+        print("  export GITHUB_OWNER=repo_owner_username")
+        print("  export GITHUB_REPO=repository_name")
+        print()
+        print("Setup Examples:")
+        print("  # For your own repository")
+        print("  export GITHUB_TOKEN=ghp_abc123def456")
+        print("  export GITHUB_PROJECT_ID=PVT_kwHODSyt1s4BBe5J")
+        print("  export GITHUB_OWNER=your-username")
+        print("  export GITHUB_REPO=your-repo-name")
+        print()
+        print("  # For someone else's repository (you need collaborator access)")
+        print("  export GITHUB_TOKEN=your_personal_token")
+        print("  export GITHUB_PROJECT_ID=their_project_id")  
+        print("  export GITHUB_OWNER=their-username")
+        print("  export GITHUB_REPO=their-repo-name")
+        print()
+        print("Required GitHub Token Permissions:")
+        print("  ✅ repo     - Access to repositories and issues")
+        print("  ✅ project  - Access to GitHub Projects v2")
+        print("  ✅ actions  - Trigger and monitor workflows (optional)")
+        print()
+        print("Usage Examples:")
+        print("  gh-projects-v2 list")
+        print("  gh-projects-v2 trigger-workflow --workflow deploy.yml --branch stage")
+        print("  gh-projects-v2 get-workflow-logs --workflow build.yml --last 1")
+        print()
+        return 0
     
     if not args.command:
         parser.print_help()
