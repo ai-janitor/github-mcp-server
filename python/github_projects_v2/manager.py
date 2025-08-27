@@ -1151,7 +1151,8 @@ class GitHubProjectsManager:
         INTEGRATION: Used by CLI metrics command to show workload distribution
         """
         try:
-            items = self.get_all_project_items(project_id)
+            # Use the same processed items as the list command to ensure consistency
+            items = self.list_project_items(project_id)
             
             # Initialize counters
             user_counts = {}
@@ -1162,16 +1163,12 @@ class GitHubProjectsManager:
             for item in items:
                 total_items += 1
                 
-                # Get item status if needed
-                status = "Unknown"
-                if by_status:
-                    for field_value in item.get('fieldValues', {}).get('nodes', []):
-                        if field_value.get('field', {}).get('name') == 'Status':
-                            status = field_value.get('name', 'Unknown')
-                            break
+                # Get item status (already processed in list_project_items)
+                status = item.get('status', 'Unknown')
                 
-                # Get assignees for this item
-                assignees = item.get('content', {}).get('assignees', {}).get('nodes', [])
+                # Get assignees for this item (using same format as list command)
+                issue = item.get('issue', {})
+                assignees = issue.get('assignees', {}).get('nodes', [])
                 
                 if not assignees:
                     unassigned_count += 1
