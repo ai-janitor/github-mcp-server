@@ -36,7 +36,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.9.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.13.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
     parser.add_argument('--update-bashrc', action='store_true', help='Automatically update .bashrc/.zshrc with extracted environment variables and completion setup (use with --extract-setup)')
@@ -147,6 +147,10 @@ def main():
     get_logs_parser.add_argument('--run-id', help='Specific run ID')
     get_logs_parser.add_argument('--branch', help='Filter runs by branch (when using --last)')
     get_logs_parser.add_argument('--last', type=int, default=1, help='Get logs from Nth most recent run (default: 1 = most recent)')
+    
+    # Metrics command
+    metrics_parser = subparsers.add_parser('metrics', help='Show project assignment metrics')
+    metrics_parser.add_argument('--by-status', action='store_true', help='Break down metrics by status')
     
     # Cache management command
     cache_parser = subparsers.add_parser('cache', help='Manage completion cache')
@@ -724,6 +728,72 @@ def main():
             print("="*80)
             print(logs)
             print("="*80)
+        
+        elif args.command == 'metrics':
+            print(f"Assignment metrics for project {project_id}")
+            print("=" * 50)
+            
+            metrics = manager.get_assignment_metrics(project_id, args.by_status)
+            
+            if not metrics['success']:
+                print(f"❌ Error getting metrics: {metrics['error']}")
+                return 1
+            
+            total_items = metrics['total_items']
+            user_counts = metrics['user_counts']
+            unassigned_count = metrics['unassigned_count']
+            
+            print(f"Total Items: {total_items}")
+            print()
+            
+            if not args.by_status:
+                # Simple user assignment table
+                print("Assignment Distribution:")
+                print("-" * 40)
+                print(f"{'User':<25} {'Count':<8} {'Percentage'}")
+                print("-" * 40)
+                
+                # Sort users by count (descending)
+                sorted_users = sorted(user_counts.items(), key=lambda x: x[1]['count'], reverse=True)
+                
+                for login, data in sorted_users:
+                    count = data['count']
+                    percentage = (count / total_items * 100) if total_items > 0 else 0
+                    display_name = data['display_name'][:24]  # Truncate long names
+                    print(f"{display_name:<25} {count:<8} {percentage:6.1f}%")
+                
+                if unassigned_count > 0:
+                    percentage = (unassigned_count / total_items * 100) if total_items > 0 else 0
+                    print(f"{'Unassigned':<25} {unassigned_count:<8} {percentage:6.1f}%")
+            else:
+                # Status breakdown
+                status_breakdown = metrics['status_breakdown']
+                
+                print("Assignment Distribution by Status:")
+                print("-" * 50)
+                
+                for status, data in status_breakdown.items():
+                    print(f"\n{status}:")
+                    print("-" * (len(status) + 1))
+                    
+                    status_total = data['unassigned'] + sum(user_data['count'] for user_data in data['users'].values())
+                    
+                    if status_total == 0:
+                        print("  (no items)")
+                        continue
+                    
+                    # Sort users by count within this status
+                    sorted_status_users = sorted(data['users'].items(), key=lambda x: x[1]['count'], reverse=True)
+                    
+                    for login, user_data in sorted_status_users:
+                        count = user_data['count']
+                        percentage = (count / status_total * 100) if status_total > 0 else 0
+                        display_name = user_data['display_name'][:20]
+                        print(f"  {display_name:<22} {count:<4} ({percentage:4.1f}%)")
+                    
+                    if data['unassigned'] > 0:
+                        percentage = (data['unassigned'] / status_total * 100) if status_total > 0 else 0
+                        print(f"  {'Unassigned':<22} {data['unassigned']:<4} ({percentage:4.1f}%)")
         
         elif args.command == 'cache':
             from .completion_cache import CompletionCache

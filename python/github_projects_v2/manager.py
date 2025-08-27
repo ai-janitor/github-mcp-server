@@ -1142,3 +1142,77 @@ class GitHubProjectsManager:
                 'parsed': parsed,
                 'export_commands': []
             }
+    
+    def get_assignment_metrics(self, project_id: str, by_status: bool = False) -> Dict[str, Any]:
+        """
+        UNDERSTANDING: Get metrics showing how many tickets are assigned to each user
+        EXPECTS: project_id (PVT_xxx format), optional by_status breakdown flag
+        RETURNS: Dictionary with user assignment statistics and totals
+        INTEGRATION: Used by CLI metrics command to show workload distribution
+        """
+        try:
+            items = self.get_all_project_items(project_id)
+            
+            # Initialize counters
+            user_counts = {}
+            unassigned_count = 0
+            total_items = 0
+            status_breakdown = {} if by_status else None
+            
+            for item in items:
+                total_items += 1
+                
+                # Get item status if needed
+                status = "Unknown"
+                if by_status:
+                    for field_value in item.get('fieldValues', {}).get('nodes', []):
+                        if field_value.get('field', {}).get('name') == 'Status':
+                            status = field_value.get('name', 'Unknown')
+                            break
+                
+                # Get assignees for this item
+                assignees = item.get('content', {}).get('assignees', {}).get('nodes', [])
+                
+                if not assignees:
+                    unassigned_count += 1
+                    if by_status:
+                        if status not in status_breakdown:
+                            status_breakdown[status] = {'users': {}, 'unassigned': 0}
+                        status_breakdown[status]['unassigned'] += 1
+                else:
+                    # Count each assignee for this item
+                    for assignee in assignees:
+                        login = assignee.get('login')
+                        name = assignee.get('name', login)
+                        display_name = f"{name} ({login})" if name and name != login else login
+                        
+                        if login not in user_counts:
+                            user_counts[login] = {
+                                'display_name': display_name,
+                                'count': 0
+                            }
+                        user_counts[login]['count'] += 1
+                        
+                        if by_status:
+                            if status not in status_breakdown:
+                                status_breakdown[status] = {'users': {}, 'unassigned': 0}
+                            if login not in status_breakdown[status]['users']:
+                                status_breakdown[status]['users'][login] = {
+                                    'display_name': display_name,
+                                    'count': 0
+                                }
+                            status_breakdown[status]['users'][login]['count'] += 1
+            
+            return {
+                'success': True,
+                'total_items': total_items,
+                'user_counts': user_counts,
+                'unassigned_count': unassigned_count,
+                'status_breakdown': status_breakdown
+            }
+            
+        except Exception as e:
+            return {
+                'success': False,
+                'error': str(e)
+            }
