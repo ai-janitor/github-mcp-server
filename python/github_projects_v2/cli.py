@@ -36,7 +36,7 @@ def main():
         prog='gh-projects-v2'
     )
     parser.add_argument('--project-id', help='GitHub Projects v2 ID (PVT_xxx format) - overrides GITHUB_PROJECT_ID env var')
-    parser.add_argument('--version', action='version', version='%(prog)s 1.13.0')
+    parser.add_argument('--version', action='version', version='%(prog)s 1.14.0')
     parser.add_argument('--help-setup', action='store_true', help='Show environment variable setup examples')
     parser.add_argument('--extract-setup', metavar='URL', help='Extract environment setup from GitHub URL (repo or project)')
     parser.add_argument('--update-bashrc', action='store_true', help='Automatically update .bashrc/.zshrc with extracted environment variables and completion setup (use with --extract-setup)')
@@ -151,6 +151,7 @@ def main():
     # Metrics command
     metrics_parser = subparsers.add_parser('metrics', help='Show project assignment metrics')
     metrics_parser.add_argument('--by-status', action='store_true', help='Break down metrics by status')
+    metrics_parser.add_argument('--details', action='store_true', help='Show detailed workload for each user including specific tickets and duration')
     
     # Cache management command
     cache_parser = subparsers.add_parser('cache', help='Manage completion cache')
@@ -733,7 +734,7 @@ def main():
             print(f"Assignment metrics for project {project_id}")
             print("=" * 50)
             
-            metrics = manager.get_assignment_metrics(project_id, args.by_status)
+            metrics = manager.get_assignment_metrics(project_id, args.by_status, args.details)
             
             if not metrics['success']:
                 print(f"❌ Error getting metrics: {metrics['error']}")
@@ -794,6 +795,31 @@ def main():
                     if data['unassigned'] > 0:
                         percentage = (data['unassigned'] / status_total * 100) if status_total > 0 else 0
                         print(f"  {'Unassigned':<22} {data['unassigned']:<4} ({percentage:4.1f}%)")
+            
+            # Show detailed workload if requested
+            if args.details:
+                user_details = metrics.get('user_details', {})
+                if user_details:
+                    print()
+                    print("Detailed User Workload:")
+                    print("=" * 60)
+                    
+                    for login, data in sorted(user_details.items(), key=lambda x: len(x[1]['tickets']), reverse=True):
+                        print(f"\n👤 {data['display_name']} ({len(data['tickets'])} tickets):")
+                        print("-" * 50)
+                        
+                        # Sort tickets by duration (longest first)
+                        tickets = sorted(data['tickets'], key=lambda t: t['duration'], reverse=True)
+                        
+                        for ticket in tickets:
+                            title = ticket['title'][:45] + "..." if len(ticket['title']) > 45 else ticket['title']
+                            print(f"  #{ticket['number']:<4} {title:<48} [{ticket['status']:<12}] {ticket['duration']:>8}")
+                        
+                        # Show totals
+                        total_duration = len([t for t in tickets if t['duration'] != "Unknown"])
+                        print(f"  {'':>55} Total: {len(tickets)} tickets")
+                else:
+                    print("\nNo assigned users found for detailed view.")
         
         elif args.command == 'cache':
             from .completion_cache import CompletionCache

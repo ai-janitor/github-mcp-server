@@ -7,6 +7,7 @@ INTEGRATION: Replicates MCP Server functionality for environments without AI
 
 import requests
 import re
+from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional, Tuple
 
 
@@ -1143,11 +1144,11 @@ class GitHubProjectsManager:
                 'export_commands': []
             }
     
-    def get_assignment_metrics(self, project_id: str, by_status: bool = False) -> Dict[str, Any]:
+    def get_assignment_metrics(self, project_id: str, by_status: bool = False, include_details: bool = False) -> Dict[str, Any]:
         """
         UNDERSTANDING: Get metrics showing how many tickets are assigned to each user
-        EXPECTS: project_id (PVT_xxx format), optional by_status breakdown flag
-        RETURNS: Dictionary with user assignment statistics and totals
+        EXPECTS: project_id (PVT_xxx format), optional by_status breakdown flag, optional include_details flag
+        RETURNS: Dictionary with user assignment statistics and totals, optionally including detailed ticket info
         INTEGRATION: Used by CLI metrics command to show workload distribution
         """
         try:
@@ -1159,6 +1160,7 @@ class GitHubProjectsManager:
             unassigned_count = 0
             total_items = 0
             status_breakdown = {} if by_status else None
+            user_details = {} if include_details else None
             
             for item in items:
                 total_items += 1
@@ -1190,6 +1192,44 @@ class GitHubProjectsManager:
                             }
                         user_counts[login]['count'] += 1
                         
+                        # Collect detailed ticket information if requested
+                        if include_details:
+                            if login not in user_details:
+                                user_details[login] = {
+                                    'display_name': display_name,
+                                    'tickets': []
+                                }
+                            
+                            # Calculate time since last update (proxy for how long they've been working on it)
+                            updated_at = issue.get('updatedAt', '')
+                            duration_str = "Unknown"
+                            if updated_at:
+                                try:
+                                    updated_time = datetime.fromisoformat(updated_at.replace('Z', '+00:00'))
+                                    now = datetime.now(timezone.utc)
+                                    duration = now - updated_time
+                                    days = duration.days
+                                    hours = duration.seconds // 3600
+                                    
+                                    if days > 0:
+                                        duration_str = f"{days}d {hours}h"
+                                    elif hours > 0:
+                                        duration_str = f"{hours}h"
+                                    else:
+                                        minutes = duration.seconds // 60
+                                        duration_str = f"{minutes}m"
+                                except:
+                                    duration_str = "Unknown"
+                            
+                            user_details[login]['tickets'].append({
+                                'title': issue.get('title', 'No title'),
+                                'number': issue.get('number'),
+                                'status': status,
+                                'duration': duration_str,
+                                'url': issue.get('url', ''),
+                                'item_id': item.get('id')
+                            })
+                        
                         if by_status:
                             if status not in status_breakdown:
                                 status_breakdown[status] = {'users': {}, 'unassigned': 0}
@@ -1205,7 +1245,8 @@ class GitHubProjectsManager:
                 'total_items': total_items,
                 'user_counts': user_counts,
                 'unassigned_count': unassigned_count,
-                'status_breakdown': status_breakdown
+                'status_breakdown': status_breakdown,
+                'user_details': user_details
             }
             
         except Exception as e:
